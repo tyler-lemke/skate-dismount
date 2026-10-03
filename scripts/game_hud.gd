@@ -10,6 +10,7 @@ signal resume_requested
 signal replay_requested
 signal mute_requested
 signal quit_requested
+signal help_closed
 
 const INK := Color("10212d")
 const MINT := Color("84efbc")
@@ -98,7 +99,7 @@ func build_menu() -> void:
 	panel(menu,Vector2(754,660),Vector2(654,218),Color(.04,.10,.14,.92),Color("38515b"))
 	route_title=label(menu,"",Vector2(782,710),Vector2(604,50),36)
 	route_info=label(menu,"",Vector2(784,680),Vector2(580,28),13,MINT)
-	route_desc=label(menu,"",Vector2(784,769),Vector2(580,70),18,MUTED)
+	route_desc=label(menu,"",Vector2(784,763),Vector2(580,77),17,MUTED)
 	label(menu,"RAGDOLL RIDER    ×    DOMINO DESTRUCTION",Vector2(784,846),Vector2(580,22),12,MINT)
 
 func build_hud() -> void:
@@ -164,14 +165,14 @@ func build_help() -> void:
 	label(help_panel,"SPACE bails into a full ragdoll. Hitting an obstacle also throws you off.\nAim for dominoes, carts, cargo towers, and the orange explosive drums.",Vector2(360,408),Vector2(714,65),19,MUTED)
 	label(help_panel,"03   KEEP THE CASCADE ALIVE",Vector2(360,494),Vector2(700,30),21)
 	label(help_panel,"A / D applies aftertouch in the air. SHIFT spends one of three\ncrashbreaker boosts. Fresh wrecks build a multiplier up to ×8.\nC changes camera. TAB uses slow motion. R retries. ESC pauses.",Vector2(360,533),Vector2(714,100),19,MUTED)
-	button(help_panel,"LET'S MAKE A MESS  →",Vector2(360,677),Vector2(716,61),func(): help_panel.visible=false,true)
+	button(help_panel,"LET'S MAKE A MESS  →",Vector2(360,677),Vector2(716,61),func(): close_help(),true)
 
 func set_route(index: int, best: int) -> void:
 	var l:Dictionary=WreckRules.LEVELS[index]
 	route_title.text=l.name
 	route_info.text="%s     /     %d STEPS     /     %d WRECKABLES" % [l.district,l.steps,get_parent().world.props.size()]
 	route_info.add_theme_color_override("font_color",l.color)
-	route_desc.text=l.subtitle+"\n"+l.objective
+	route_desc.text=l.subtitle+"\n"+l.objective+"\nGOLD TARGET  "+WreckRules.money(l.gold)
 	best_label.text="PERSONAL BEST   "+WreckRules.money(best)
 	for i in range(3):
 		route_buttons[i].add_theme_color_override("font_color",MINT if i==index else MUTED)
@@ -208,7 +209,7 @@ func update_game(rules: WreckRules, state: String, speed: float, charge: float, 
 	charge_label.text="RELEASE TO LAUNCH   %d%% POWER" % int(charge*100) if charge>0 else "HOLD SPACE TO BUILD POWER"
 
 func toast(message: String, color: Color = MINT) -> void:
-	toast_label.text=message; toast_label.modulate=color; toast_timer=1.9
+	toast_label.text=message; toast_label.add_theme_color_override("font_color",color); toast_label.modulate=Color.WHITE; toast_timer=1.9
 
 func flash() -> void:
 	screen_flash.color.a=.22
@@ -217,3 +218,7 @@ func _process(delta: float) -> void:
 	toast_timer=maxf(0,toast_timer-delta)
 	toast_label.modulate.a=minf(1.0,toast_timer*3.0)
 	screen_flash.color.a=move_toward(screen_flash.color.a,0,delta*.85)
+
+func close_help() -> void:
+	help_panel.visible=false
+	help_closed.emit()

@@ -36,12 +36,12 @@ func build(parent: Node3D, level_index: int, owner_game: Node) -> void:
 	var length: float = level.steps * level.run
 	var width: float = level.width
 	static_box("World foundation",Vector3(0,-1.5,10),Vector3(140,2.5,170),"asphalt")
-	static_box("Launch deck",Vector3(0,h-.5,-9.0),Vector3(width,1,18),"concrete")
+	static_box("Launch deck",Vector3(0,(h-.5)*.5,-9.0),Vector3(width,h+.5,18),"concrete")
 	# Each tread is a genuine box collider; the ragdoll tumbles down real risers.
 	for i in level.steps:
 		var y: float = h - (i + 1) * level.rise
 		var z: float = (i + .5) * level.run
-		static_box("Tread_%02d" % i,Vector3(0,y-.25,z),Vector3(width,.5,level.run),"concrete")
+		static_box("Tread_%02d" % i,Vector3(0,(y-.5)*.5,z),Vector3(width,y+.5,level.run),"concrete")
 		box(Vector3(0,y-.06,z-level.run*.5+.035),Vector3(width,.11,.055),"riser")
 		# Painted stair noses and central lane marks give speed and scale cues.
 		for x in [-width*.5+.12,width*.5-.12]:
@@ -61,7 +61,9 @@ func build(parent: Node3D, level_index: int, owner_game: Node) -> void:
 		beam(Vector3(x,h+1.4,0),Vector3(x,1.4,length),.075,"steel")
 		beam(Vector3(x,h+.85,0),Vector3(x,.85,length),.04,"accent")
 	static_box("Crash plaza",Vector3(0,-.25,length+9),Vector3(34,.5,18),"concrete")
-	static_box("Containment at end",Vector3(0,1.1,length+18),Vector3(36,2.2,.8),"ink")
+	static_box("Containment at end",Vector3(0,4.0,length+18),Vector3(36,8.0,.8),"ink")
+	label_3d("END OF THE LINE",Vector3(0,5.5,length+17.58),.75,level.color,Vector3(0,PI,0))
+	label_3d("THANK YOU FOR YOUR COLLATERAL",Vector3(0,4.3,length+17.57),.26,Color("eff5ec"),Vector3(0,PI,0))
 	for x in [-15.5,15.5]:
 		static_box("Plaza side curb",Vector3(x,.45,length+9),Vector3(.5,.9,18),"ink")
 	# Start-line runway, arrow inlays, and readable track branding.
@@ -92,6 +94,8 @@ func build(parent: Node3D, level_index: int, owner_game: Node) -> void:
 				var light := OmniLight3D.new()
 				root.add_child(light); light.position = Vector3(x,sy+3.4,z)
 				light.light_color = level.color; light.light_energy = 1.0; light.omni_range = 9.0
+
+	batch_static_decor()
 
 func setup_lighting() -> void:
 	var environment := WorldEnvironment.new()
@@ -179,7 +183,7 @@ func spawn(kind: String, x: float, z: float, stack: float = 0) -> CrashProp:
 func civic_scenery(h: float, length: float) -> void:
 	for side in [-1,1]:
 		for i in range(5):
-			var x: float = side*(14.0+decor_rng.randf_range(0,5))
+			var x: float = side*(24.0+decor_rng.randf_range(0,5))
 			var z: float = -10+i*12.0
 			building(Vector3(x,0,z),Vector3(9,decor_rng.randf_range(10,23),8),i%2)
 		for i in range(7):
@@ -200,7 +204,7 @@ func market_scenery(h: float, length: float) -> void:
 			box(Vector3(x,sy+2.7,z),Vector3(3.7,.20,4.4),"pink" if i%2==0 else "accent")
 			for dx in [-1.4,1.4]: box(Vector3(x+dx,sy+1.75,z+1.6),Vector3(.1,3.5,.1),"steel")
 			label_3d(["NOODLES","99¢","NIGHT OWL","FRESH","OPEN LATE","HOT!","MARKET"][i],Vector3(x,sy+2.25,z+1.94),.31,level.color)
-			building(Vector3(side*17,0,z),Vector3(8,decor_rng.randf_range(15,28),7),1)
+			building(Vector3(side*24,0,z),Vector3(8,decor_rng.randf_range(15,28),7),1)
 	for i in range(7):
 		var z: float = -4+i*7.0
 		var sy: float = WreckRules.surface_y(level,z)
@@ -220,7 +224,7 @@ func port_scenery(h: float, length: float) -> void:
 				box(Vector3(x,sy+1.5+layer*3.1,z),Vector3(5,3,8),"orange" if i%2==0 else "ink")
 				for rib in range(11): box(Vector3(x-side*2.53,sy+1.5+layer*3.1,z-3.8+rib*.76),Vector3(.07,2.8,.08),"steel")
 			label_3d("TERMINAL 09",Vector3(x,sy+1.8,z+4.03),.35,level.color)
-	for z in [8.0,38.0]:
+	for z in [-18.0,length+18.0]:
 		for x in [-18,20]: box(Vector3(x,18,z),Vector3(.8,36,.8),"yellow")
 		box(Vector3(1,35,z),Vector3(40,.9,.9),"yellow")
 		beam(Vector3(12,35,z),Vector3(12,12,z),.055,"steel")
@@ -249,6 +253,7 @@ func mat(color: Color, metallic: float = 0, emission: float = 0) -> StandardMate
 
 func box(at: Vector3, size: Vector3, material_key: String) -> MeshInstance3D:
 	var mesh := MeshInstance3D.new(); var cube := BoxMesh.new(); cube.size=size; mesh.mesh=cube; mesh.material_override=mats[material_key]; root.add_child(mesh); mesh.position=at
+	mesh.set_meta("decor_material",material_key)
 	return mesh
 
 func static_box(body_name: String, at: Vector3, size: Vector3, material_key: String) -> void:
@@ -264,3 +269,24 @@ func beam(a: Vector3, b: Vector3, radius: float, material_key: String) -> void:
 
 func label_3d(text: String, at: Vector3, size: float, color: Color, rot: Vector3 = Vector3.ZERO) -> void:
 	var label := Label3D.new(); label.text=text; label.font_size=64; label.pixel_size=size/45.0; label.modulate=color; label.outline_size=0; label.no_depth_test=false; root.add_child(label); label.position=at; label.rotation=rot
+
+func batch_static_decor() -> void:
+	# Painted inlays, skyline windows, stalls, and containers share eight draw batches.
+	# Physics bodies and detailed Blender assets retain their independent nodes.
+	var batches: Dictionary={}
+	for node in root.get_children():
+		if node is MeshInstance3D and node.has_meta("decor_material"):
+			var key: String=node.get_meta("decor_material")
+			if not batches.has(key):batches[key]=[]
+			var transform:Transform3D=node.transform
+			transform.basis=transform.basis*Basis.from_scale(node.mesh.size)
+			batches[key].append(transform)
+			root.remove_child(node);node.queue_free()
+	for key in batches:
+		var renderer:=MultiMeshInstance3D.new()
+		var multimesh:=MultiMesh.new();multimesh.transform_format=MultiMesh.TRANSFORM_3D
+		var unit:=BoxMesh.new();unit.size=Vector3.ONE;multimesh.mesh=unit
+		multimesh.instance_count=batches[key].size()
+		for i in batches[key].size():multimesh.set_instance_transform(i,batches[key][i])
+		renderer.multimesh=multimesh;renderer.material_override=mats[key]
+		renderer.name="Decor_"+key;renderer.set_meta("validation_transforms",batches[key]);root.add_child(renderer)

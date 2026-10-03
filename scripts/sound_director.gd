@@ -7,6 +7,8 @@ var sounds: Dictionary = {}
 var cursor: int = 0
 var last_impact: int = 0
 func _ready() -> void:
+	# Dummy headless audio has no device to drain playback resources.
+	if DisplayServer.get_name()=="headless": return
 	for key in ["impact","blast","boost","launch","clack","finish"]:
 		sounds[key]=load("res://assets/audio/"+key+".wav")
 	music=AudioStreamPlayer.new(); music.stream=load("res://assets/audio/cascade.wav"); music.bus="Music"; add_child(music); music.play()
@@ -30,3 +32,10 @@ func update_roll(speed: float, rolling: bool) -> void:
 	if not is_instance_valid(roll): return
 	roll.volume_db=lerpf(roll.volume_db,-12+speed*.17 if rolling else -60,.12)
 	roll.pitch_scale=.7+speed*.035
+
+func _exit_tree() -> void:
+	if is_instance_valid(music): music.stop(); music.stream=null
+	if is_instance_valid(roll): roll.stop(); roll.stream=null
+	for player in pool:
+		if is_instance_valid(player): player.stop(); player.stream=null
+	pool.clear(); sounds.clear()

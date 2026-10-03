@@ -15,6 +15,8 @@ var nominal_radius: float = 0.65
 var grace: float = 0.65
 var fuse: float = -1.0
 var game: Node
+var visual_broken: bool = false
+var damaged_material: StandardMaterial3D
 
 func _ready() -> void:
 	origin = global_position
@@ -72,9 +74,14 @@ func shatter() -> void:
 	broken = true
 	wrecked.emit(self, explosive)
 	# Keep the physical body intact: wrecked drums and cars still carry the chain reaction.
-	if visual:
-		for mesh in visual.find_children("*", "MeshInstance3D", true, false):
-			var tint := StandardMaterial3D.new()
-			tint.albedo_color = Color("c56746") if explosive else Color("657c7c")
-			tint.roughness = 0.85
-			mesh.material_override = tint
+	set_damaged_visual(true)
+
+func set_damaged_visual(damaged: bool) -> void:
+	if visual_broken==damaged or not visual: return
+	visual_broken=damaged
+	if damaged and damaged_material==null:
+		damaged_material=StandardMaterial3D.new()
+		damaged_material.albedo_color=Color("c56746") if explosive else Color("657c7c")
+		damaged_material.roughness=.85
+	for mesh in visual.find_children("*", "MeshInstance3D", true, false):
+		mesh.material_override=damaged_material if damaged else null

@@ -27,6 +27,7 @@ var camera_style: int = 0
 var camera_shake: float = 0.0
 var camera_target: Vector3 = Vector3.ZERO
 var is_paused: bool = false
+var paused_for_help: bool = false
 var slow_motion: bool = false
 var best_scores: Array[int] = [0,0,0]
 var muted: bool = false
@@ -34,6 +35,7 @@ var save_path: String = "user://records.json"
 var particles: Array[Dictionary] = []
 var replay_frames: Array[Dictionary] = []
 var replay_actors: Array[Node3D] = []
+var self_check: bool = false
 var record_clock: float = 0.0
 var replay_clock: float = 0.0
 var result_was_best: bool = false
@@ -52,9 +54,11 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg=="--test-mode": test_mode=true; save_path="res://builds/test_records.json"
 		if arg=="--demo": automate=true
+		if arg=="--self-check": automate=true;self_check=true
 		if arg=="--capture": capture_mode=true; automate=true
 		if arg.begins_with("--level="): pending_level=clampi(int(arg.split("=")[1]),0,2)
 	if capture_mode: save_path="res://builds/capture_records.json"
+	if self_check: save_path=OS.get_executable_path().get_base_dir()+"/self_check_records.json"
 	load_records()
 	camera=Camera3D.new(); camera.fov=58; camera.near=.15; camera.far=250; add_child(camera); camera.current=true
 	hud=HUD.new(); hud.process_mode=Node.PROCESS_MODE_ALWAYS; add_child(hud)
@@ -67,6 +71,9 @@ func _ready() -> void:
 	hud.replay_requested.connect(start_replay)
 	hud.mute_requested.connect(toggle_mute)
 	hud.quit_requested.connect(func(): get_tree().quit())
+	hud.help_closed.connect(func():
+		if paused_for_help: paused_for_help=false; unpause()
+	)
 	sound=Sound.new(); add_child(sound); sound.set_muted(muted)
 	select_route(pending_level)
 	if automate: start_ready()
@@ -96,7 +103,7 @@ func select_route(index: int) -> void:
 	var l:Dictionary=Rules.LEVELS[level_index]
 	skater.position=Vector3(0,l.steps*l.rise+.23,-13)
 	phase=Phase.MENU; charge=0; charging=false; run_speed=0; boosts=3; run_clock=0; crash_clock=0; camera_shake=0
-	camera_target=Vector3(0,l.steps*l.rise*.45,l.steps*l.run*.40)
+	camera_target=Vector3(-5,l.steps*l.rise*.45,l.steps*l.run*.40)
 	camera.position=overview_position()
 	camera.look_at(camera_target)
 	hud.set_route(level_index,best_scores[level_index]); hud.show_menu()
@@ -116,14 +123,14 @@ func back_to_menu() -> void:
 	select_route(level_index)
 
 func unpause() -> void:
-	get_tree().paused=false; is_paused=false; Engine.time_scale=1.0; slow_motion=false
+	get_tree().paused=false; is_paused=false; paused_for_help=false; Engine.time_scale=1.0; slow_motion=false
 	if is_instance_valid(hud): hud.pause_panel.visible=false
 
 func toggle_pause() -> void:
 	if phase==Phase.MENU: return
 	if phase==Phase.RESULTS: back_to_menu(); return
 	is_paused=not is_paused; get_tree().paused=is_paused; hud.pause_panel.visible=is_paused
-	Engine.time_scale=1.0 if is_paused else (.32 if slow_motion else 1.0)
+	slow_motion=false;Engine.time_scale=1.0
 
 func toggle_mute() -> void:
 	muted=not muted; sound.set_muted(muted); save_records()
@@ -134,7 +141,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not event is InputEventKey or event.echo: return
 	var key: int=event.physical_keycode
 	if key==KEY_ESCAPE and event.pressed:
-		if hud.help_panel.visible: hud.help_panel.visible=false
+		if hud.help_panel.visible: hud.close_help()
 		else: toggle_pause()
 		return
 	if key==KEY_M and event.pressed: toggle_mute(); return
@@ -142,7 +149,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.pressed:
 		if key==KEY_R and phase!=Phase.MENU: retry(); return
 		if key==KEY_C: camera_style=(camera_style+1)%3; return
-		if key==KEY_H: hud.help_panel.visible=true; return
+		if key==KEY_H:
+			if phase in [Phase.READY,Phase.RUN,Phase.CRASH,Phase.REPLAY]:
+				paused_for_help=true;toggle_pause();hud.pause_panel.visible=false
+			hud.help_panel.visible=true;return
 		if key==KEY_V and phase==Phase.RESULTS: start_replay(); return
 		if key==KEY_ENTER and phase==Phase.MENU: start_ready(); return
 		if key==KEY_ENTER and phase==Phase.RESULTS: retry(); return
@@ -249,11 +259,11 @@ func prop_wrecked(prop: CrashProp, explosive: bool) -> void:
 			if not is_instance_valid(other) or other==prop: continue
 			var offset: Vector3=other.global_position-at
 			var distance: float=offset.length()
-			if distance<6.2:
-				other.activate((offset+Vector3(0,1.0,3.0)).normalized()*other.mass*(15.0-distance*1.5))
+			if distance<5.2:
+				other.activate((offset+Vector3(0,.6,1.8)).normalized()*other.mass*(12.0-distance*1.8))
 		for body in skater.limbs:
-			if is_instance_valid(body) and body.global_position.distance_to(at)<6.2:
-				body.apply_central_impulse((body.global_position-at+Vector3(0,2,3)).normalized()*body.mass*7)
+			if is_instance_valid(body) and body.global_position.distance_to(at)<5.2:
+				body.apply_central_impulse((body.global_position-at+Vector3(0,.3,1.5)).normalized()*body.mass*3.5*(1.0-body.global_position.distance_to(at)/5.2))
 	else:
 		burst(prop.global_position,Rules.LEVELS[level_index].color,7,4.0)
 		sound.play("clack")
@@ -273,9 +283,14 @@ func finish_run() -> void:
 	if phase!=Phase.CRASH: return
 	phase=Phase.RESULTS; Engine.time_scale=1.0; slow_motion=false
 	result_was_best=rules.score>best_scores[level_index]
-	if result_was_best: best_scores[level_index]=rules.score; save_records()
+	if result_was_best:
+		best_scores[level_index]=rules.score
+		if not self_check: save_records()
 	freeze_actors()
 	hud.show_results(rules,level_index,result_was_best); sound.play("finish")
+	if self_check:
+		print("SELF_CHECK: level=",level_index+1," score=",rules.score," wrecks=",rules.destroyed," explosions=",rules.explosions," frames=",replay_frames.size())
+		get_tree().quit(0 if rules.destroyed>=4 and rules.score>3000 else 1)
 
 func freeze_actors() -> void:
 	for prop in world.props:
@@ -286,9 +301,11 @@ func freeze_actors() -> void:
 func record_frame() -> void:
 	if phase!=Phase.CRASH: return
 	var transforms: Array[Transform3D] = []
+	var damage_states: Array[bool] = []
+	for prop in world.props: damage_states.append(prop.broken if is_instance_valid(prop) else true)
 	for actor in replay_actors:
 		transforms.append(actor.global_transform if is_instance_valid(actor) else Transform3D.IDENTITY)
-	replay_frames.append({"transforms":transforms,"camera":camera.global_transform,"score":rules.score,"speed":skater.speed()})
+	replay_frames.append({"transforms":transforms,"camera":camera.global_transform,"score":rules.score,"speed":skater.speed(),"damage":damage_states})
 
 func start_replay() -> void:
 	if phase!=Phase.RESULTS or replay_frames.size()<2: return
@@ -304,10 +321,14 @@ func _process(delta: float) -> void:
 		var i: int=int(cursor)
 		if i>=replay_frames.size()-1:
 			phase=Phase.RESULTS; hud.replay_banner.visible=false; hud.show_results(rules,level_index,result_was_best)
+			for prop in world.props:
+				if is_instance_valid(prop): prop.set_damaged_visual(prop.broken)
 		else:
 			var a:Dictionary=replay_frames[i]; var b:Dictionary=replay_frames[i+1]; var t:float=cursor-i
 			for j in replay_actors.size():
-				if is_instance_valid(replay_actors[j]): replay_actors[j].global_transform=a.transforms[j].interpolate_with(b.transforms[j],t)
+				if is_instance_valid(replay_actors[j]):
+					replay_actors[j].global_transform=a.transforms[j].interpolate_with(b.transforms[j],t)
+					if replay_actors[j] is CrashProp: replay_actors[j].set_damaged_visual(a.damage[j])
 			camera.global_transform=a.camera.interpolate_with(b.camera,t)
 			hud.update_game(rules,"REPLAY",a.speed,0,boosts,0,false); hud.score_label.text=Rules.money(a.score)
 		return
@@ -320,7 +341,7 @@ func _process(delta: float) -> void:
 
 func overview_position() -> Vector3:
 	var l:Dictionary=Rules.LEVELS[level_index]
-	return Vector3(30,l.steps*l.rise+22,l.steps*l.run*.64+21)
+	return Vector3(23,l.steps*l.rise+27,l.steps*l.run*.58+18)
 
 func update_camera(delta: float) -> void:
 	if phase==Phase.MENU:

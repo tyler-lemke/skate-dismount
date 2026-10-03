@@ -21,6 +21,10 @@ func _physics_process(delta: float) -> void:
 	cooldown = maxf(0.0, cooldown - delta)
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	# Arcade energy ceiling keeps overlapping drum blasts in the playable crash zone.
+	state.linear_velocity=state.linear_velocity.limit_length(36.0)
+	state.linear_velocity.y=clampf(state.linear_velocity.y,-24.0,9.0)
+	state.angular_velocity=state.angular_velocity.limit_length(18.0)
 	if cooldown > 0.0 or not is_instance_valid(game) or not game.is_live(): return
 	var force: float = 0.0
 	for i in state.get_contact_count():
