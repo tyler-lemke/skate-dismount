@@ -1,0 +1,80 @@
+class_name CrashProp
+extends RigidBody3D
+
+signal wrecked(prop: CrashProp, explosive: bool)
+var kind: String = "crate"
+var value: int = 900
+var armed: bool = false
+var broken: bool = false
+var explosive: bool = false
+var origin: Vector3
+var hit_strength: float = 0.0
+var visual: Node3D
+var threshold: float = 2.8
+var nominal_radius: float = 0.65
+var grace: float = 0.65
+var fuse: float = -1.0
+var game: Node
+
+func _ready() -> void:
+	origin = global_position
+	contact_monitor = true
+	max_contacts_reported = 8
+	continuous_cd = true
+	linear_damp = 0.08
+	angular_damp = 0.16
+	collision_layer = 2
+	collision_mask = 7
+	var material := PhysicsMaterial.new()
+	material.friction = 0.48
+	material.bounce = 0.13
+	physics_material_override = material
+
+func _physics_process(delta: float) -> void:
+	grace = maxf(0.0, grace - delta)
+	if not armed: return
+	if fuse > 0.0:
+		fuse -= delta
+		if fuse <= 0.0 and not broken: shatter()
+	if not broken and grace == 0.0:
+		var travel: float = global_position.distance_to(origin)
+		var tilt: float = global_basis.y.dot(Vector3.UP)
+		if travel > 0.55 or tilt < 0.76:
+			shatter()
+	if global_position.y < -12.0:
+		queue_free()
+
+func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	if broken or grace > 0.0 or not is_instance_valid(game) or not game.is_live(): return
+	for i in state.get_contact_count():
+		var other: Object = state.get_contact_collider_object(i)
+		if other == null: continue
+		var causal: bool = other.has_meta("rider") or (other is CrashProp and other.armed)
+		if not causal: continue
+		var relative: float = (state.get_contact_local_velocity_at_position(i) - state.get_contact_collider_velocity_at_position(i)).length()
+		var impulse: float = state.get_contact_impulse(i).length() / maxf(mass, 1.0)
+		hit_strength = maxf(relative, impulse)
+		if hit_strength > 0.7:
+			armed = true
+		if hit_strength >= threshold:
+			call_deferred("shatter")
+			break
+
+func activate(impulse: Vector3) -> void:
+	armed = true
+	sleeping = false
+	apply_central_impulse(impulse)
+	if explosive and not broken and fuse < 0.0:
+		fuse = 0.16 + randf() * 0.25
+
+func shatter() -> void:
+	if broken or not armed or not is_instance_valid(game) or not game.is_live(): return
+	broken = true
+	wrecked.emit(self, explosive)
+	# Keep the physical body intact: wrecked drums and cars still carry the chain reaction.
+	if visual:
+		for mesh in visual.find_children("*", "MeshInstance3D", true, false):
+			var tint := StandardMaterial3D.new()
+			tint.albedo_color = Color("c56746") if explosive else Color("657c7c")
+			tint.roughness = 0.85
+			mesh.material_override = tint

@@ -1,0 +1,32 @@
+extends Node
+
+var music: AudioStreamPlayer
+var roll: AudioStreamPlayer
+var pool: Array[AudioStreamPlayer] = []
+var sounds: Dictionary = {}
+var cursor: int = 0
+var last_impact: int = 0
+func _ready() -> void:
+	for key in ["impact","blast","boost","launch","clack","finish"]:
+		sounds[key]=load("res://assets/audio/"+key+".wav")
+	music=AudioStreamPlayer.new(); music.stream=load("res://assets/audio/cascade.wav"); music.bus="Music"; add_child(music); music.play()
+	roll=AudioStreamPlayer.new(); roll.stream=load("res://assets/audio/roll.wav"); roll.bus="SFX"; roll.volume_db=-60; add_child(roll); roll.play()
+	for i in 12:
+		var player:=AudioStreamPlayer.new(); player.bus="SFX"; add_child(player); pool.append(player)
+
+func set_muted(muted: bool) -> void:
+	AudioServer.set_bus_mute(0,muted)
+
+func play(key: String) -> void:
+	if not sounds.has(key) or pool.is_empty(): return
+	var now: int=Time.get_ticks_msec()
+	if key in ["impact","clack"]:
+		if now-last_impact<65: return
+		last_impact=now
+	var player:AudioStreamPlayer=pool[cursor%pool.size()]; cursor+=1
+	player.stream=sounds[key]; player.pitch_scale=randf_range(.85,1.15); player.volume_db=-6 if key=="clack" else -1; player.play()
+
+func update_roll(speed: float, rolling: bool) -> void:
+	if not is_instance_valid(roll): return
+	roll.volume_db=lerpf(roll.volume_db,-12+speed*.17 if rolling else -60,.12)
+	roll.pitch_scale=.7+speed*.035
