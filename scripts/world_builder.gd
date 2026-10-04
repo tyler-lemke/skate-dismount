@@ -36,7 +36,7 @@ func build(parent: Node3D, level_index: int, owner_game: Node) -> void:
 	var length: float = level.steps * level.run
 	var width: float = level.width
 	static_box("World foundation",Vector3(0,-1.5,10),Vector3(140,2.5,170),"asphalt")
-	static_box("Launch deck",Vector3(0,(h-.5)*.5,-9.0),Vector3(width,h+.5,18),"concrete")
+	static_box("Launch deck",Vector3(0,(h-.5)*.5,-14.0),Vector3(width,h+.5,28),"concrete")
 	# Each tread is a genuine box collider; the ragdoll tumbles down real risers.
 	for i in level.steps:
 		var y: float = h - (i + 1) * level.rise
@@ -53,7 +53,7 @@ func build(parent: Node3D, level_index: int, owner_game: Node) -> void:
 		for i in level.steps:
 			var edge_y: float=h-(i+1)*level.rise
 			static_box("Terrace edge",Vector3(x,edge_y-.65,(i+.5)*level.run),Vector3(.55,1.3,level.run),"ink")
-		static_box("Launch edge",Vector3(x,h-.65,-9),Vector3(.55,1.3,18),"ink")
+		static_box("Launch edge",Vector3(x,h-.65,-14),Vector3(.55,1.3,28),"ink")
 		for j in range(-4, level.steps+1,3):
 			var z: float = j*level.run
 			var sy: float = WreckRules.surface_y(level,z)
@@ -75,9 +75,9 @@ func build(parent: Node3D, level_index: int, owner_game: Node) -> void:
 			b.rotation.y = .5
 	box(Vector3(0,h+.025,-.9),Vector3(width,.035,.20),"orange")
 	for x in [-width*.5-1,width*.5+1]:
-		box(Vector3(x,h+2,-15),Vector3(.25,4,.25),"ink")
-	box(Vector3(0,h+4,-15),Vector3(width+2,.65,.3),"ink")
-	label_3d("STAIR // WRECK",Vector3(0,h+4,-14.81),.34,Color("84efbc"))
+		box(Vector3(x,h+2,-26),Vector3(.25,4,.25),"ink")
+	box(Vector3(0,h+4,-26),Vector3(width+2,.65,.3),"ink")
+	label_3d("STAIR // WRECK",Vector3(0,h+4,-25.81),.34,Color("84efbc"))
 	label_3d("COMMIT TO THE CASCADE",Vector3(0,h+.08,-7),.19,Color("182b37"),Vector3(-PI/2,0,0))
 	populate_props()
 	if index == 0: civic_scenery(h,length)
@@ -119,41 +119,56 @@ func setup_lighting() -> void:
 	sun.directional_shadow_max_distance = 110
 
 func populate_props() -> void:
+	# Each lane has its own entry, transfer and finale. Gaps reward an aimed second act.
 	if index == 0:
-		for x in [-3.2,0.0,3.2]:
-			for s in range(4,13): spawn("domino",x,s*level.run+.5)
-		for s in [15,19,23]:
-			for x in [-2.8,0,2.8]: spawn("barrel",x,s*level.run+.5)
-		for side in [-1,1]:
-			for layer in range(3):
-				for off in [-.55,.55]: spawn("crate",side*3.4+off,16*level.run+.4,layer*1.05)
+		for step in range(4,13): spawn("domino",-3.3,step*level.run+.5)
+		for step in [8,12,16]: spawn("cart",0,step*level.run+.5)
+		spawn("taxi",3.3,7*level.run+.7)
+		for step in [14,20]:
+			for side in [-1,1]:
+				for layer in range(3):
+					for offset in [-.52,.52]: spawn("crate",side*3.25+offset,step*level.run+.5,layer*1.05)
+		for step in [17,23]:
+			for x in [-3.25,0,3.25]: spawn("barrel",x,step*level.run+.5)
 		for x in [-4.5,0,4.5]: spawn("taxi",x,level.steps*level.run+5)
 	elif index == 1:
-		for s in [4,8,12,16,20]:
-			for x in [-3.3,0,3.3]: spawn("cart",x,s*level.run+.55)
-		for s in range(5,16): spawn("domino",-4.7,s*level.run+.5)
-		for s in [17,21,25,28]:
-			for x in [-3.7,-1.2,1.2,3.7]: spawn("barrel",x,s*level.run+.5)
-		for layer in range(3):
-			for x in [-1.2,0,1.2]: spawn("crate",x,level.steps*level.run+3,layer*1.05)
-		for x in [-5,4]: spawn("taxi",x,level.steps*level.run+7)
+		for step in [4,8,12,17,22]: spawn("cart",-3.3,step*level.run+.55)
+		for step in range(5,16): spawn("domino",3.3,step*level.run+.5)
+		for step in [9,16,24]:
+			for layer in range(3):
+				for x in [-.55,.55]: spawn("crate",x,step*level.run+.4,layer*1.05)
+		for step in [19,27]:
+			for x in [-3.7,-1.2,1.2,3.7]: spawn("barrel",x,step*level.run+.5)
+		for x in [-4.5,0,4.5]: spawn("taxi",x,level.steps*level.run+6)
+		for x in [-2,0,2]: spawn("cart",x,level.steps*level.run+2)
 	else:
-		for x in [-3.6,0,3.6]:
-			for s in range(3,9): spawn("domino",x,s*level.run+.5)
-		for s in [11,18,25,32]:
-			for x in [-3.8,0,3.8]:
-				for layer in range(3): spawn("crate",x,s*level.run+.5,layer*1.05)
-		for s in [14,21,28,35]:
-			for x in [-2.4,0,2.4]: spawn("barrel",x,s*level.run+.5)
+		for step in [5,13,23,32]:
+			for layer in range(3):
+				for offset in [-.55,.55]: spawn("crate",-3.25+offset,step*level.run+.5,layer*1.05)
+		for step in range(4,11): spawn("domino",0,step*level.run+.5)
+		spawn("taxi",3.4,8*level.run+.9)
+		for step in [16,25,34]:
+			for x in [0,3.4]:
+				for layer in range(3): spawn("crate",x,step*level.run+.5,layer*1.05)
+		for step in [14,21,29,36]:
+			for x in [-3.3,0,3.3]: spawn("barrel",x,step*level.run+.5)
 		for x in [-5.2,-2.6,0,2.6,5.2]: spawn("barrel",x,level.steps*level.run+2)
 		for x in [-5,0,5]: spawn("taxi",x,level.steps*level.run+7)
-	for x in [-4.3,4.3]: spawn("cone",x,-1.4)
+	for x in [-4.7,4.7]: spawn("cone",x,-1.4)
 	for x in [-5.6,5.6]: spawn("barrier",x,level.steps*level.run+11)
+	# Physical lane signs preview the choice before any button press.
+	var routes: Array = [["DOMINO RUN","BODY + CARTS","PREMIUM TAXI"],["CART SLALOM","CARGO DROP","FUSE RUN"],["TOWER FALL","DRUM AVALANCHE","HEAVY HITTER"]][index]
+	var h: float=level.steps*level.rise
+	for lane in 3:
+		var x: float=(lane-1)*3.3
+		label_3d(routes[lane],Vector3(x,h+.10,-3.4),.12,level.color,Vector3(-PI/2,0,0))
+		box(Vector3(x,h+.026,-2.6),Vector3(2.2,.035,.08),"accent")
 
 func spawn(kind: String, x: float, z: float, stack: float = 0) -> CrashProp:
 	var prop := CrashProp.new()
 	prop.game = game; prop.kind = kind
 	prop.name = "%s_%03d" % [kind,props.size()]
+	prop.set_meta("slot",props.size())
 	prop.freeze = true
 	var size: Vector3
 	var y: float = .5
@@ -162,7 +177,7 @@ func spawn(kind: String, x: float, z: float, stack: float = 0) -> CrashProp:
 		"barrel": size=Vector3(.8,1.04,.8); y=.52; prop.mass=8.0; prop.value=1800; prop.explosive=true; prop.threshold=2.2
 		"crate": size=Vector3(1.04,1.04,1.04); y=.52; prop.mass=5.0; prop.value=1100; prop.threshold=1.9
 		"cart": size=Vector3(1.35,1.0,1.10); y=.46; prop.mass=7.0; prop.value=1400; prop.threshold=1.7
-		"taxi": size=Vector3(1.85,1.45,3.3); y=.76; prop.mass=40.0; prop.value=4500; prop.threshold=1.8
+		"taxi": size=Vector3(1.85,1.45,3.3); y=.76; prop.mass=40.0; prop.value=9000; prop.threshold=1.8
 		"cone": size=Vector3(.6,.85,.6); y=.43; prop.mass=1.4; prop.value=250; prop.threshold=1.1
 		_: size=Vector3(1.66,1.0,.65); y=.55; prop.mass=4.0; prop.value=550; prop.threshold=1.5
 	prop.nominal_radius = maxf(size.x,size.z)*.5

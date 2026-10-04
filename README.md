@@ -1,58 +1,70 @@
-# STAIR // WRECK
+# STAIR // WRECK — The Treatment Fund
 
-A complete three-route arcade crash game built with Godot and original Blender assets. Charge a skateboard launch, build speed down the stairs, then turn your ragdoll landing into a domino cascade of carts, crates, explosive drums, and taxis.
+A three-level skateboard crash game in Godot, with original Blender models and audio. Build speed, choreograph a ragdoll fall, and connect dominoes, carts, cargo towers, explosive drums, and taxis. Your score is an **insurance payout**. Mom needs cancer treatment; your absurd fictional stunt policy is your last shot at funding it.
 
-**Play:** open `builds/StairWreck.app` or double-click `Play.command`. The self-contained universal macOS app includes its engine; Godot and Blender are not needed to play. A distributable archive is in `builds/StairWreck-macOS.zip`. macOS 11 or later.
+**Play:** extract `builds/StairWreck-macOS.zip` and open `StairWreck.app`, or double-click `Play.command` in this workspace. The universal Intel / Apple Silicon macOS app includes the engine. Godot and Blender are not required to play. macOS 11 or later.
 
-![Civic Cascade route preview](docs/screenshots/level_1_menu_validation.png)
+![The treatment fund and Civic route](docs/screenshots/level_1_menu_validation.png)
 
-The image above is a Blender validation render of the instantiated Godot scene and interface layout. Native Godot window capture was unavailable in the build session. See [validation details](docs/VALIDATION.md).
+These are Blender validation renders of actual Godot runtime geometry and interface bounds. A native display was unavailable; they are not native Godot screenshots. See [validation](docs/VALIDATION.md).
 
-## Play the cascade
+## Make the next landing count
 
-Choose a route, select your starting lane, and hold **Space** to charge. Release to launch. Hold **W** to push; gravity adds speed on the stair descent. Hit an obstacle or press **Space** again to bail.
+Before launching, choose your lane, a **Tuck, Starfish, or Torpedo** pose, and a ridiculous hat. The poses have different silhouettes, joint anchors, and angular momentum. Civic starts on its domino line so the first launch demonstrates a proper cascade.
 
-Once you crash, the rider has eleven physical body parts joined into a ragdoll, with a separate physical skateboard. Use aftertouch and three crashbreaker shockwaves to reach another destruction cluster. Wrecks pass momentum to other objects; explosive drums can trigger further drums. Fresh wrecks maintain a 3.5-second cascade window and build a multiplier up to ×8. Objects score once, while measured rider impacts earn additional points.
+Hold Space to charge, then release. Push with W and steer with A/D. Hitting an obstacle or pressing Space throws the rider into eleven connected physical body parts, alongside a separate skateboard.
+
+Crashes automatically run at **55% speed**. A major body impact briefly drops to 18%, with a global cooldown to keep the action moving. Bruises and glowing injury markers persist on the struck limbs; the anatomy diagram shows **OK, Bruised, Strained, or Fractured**. Receipts explain each awarded claim. Resting contacts and skateboard impacts cannot earn injury money.
+
+A/D aims your next crashbreaker; S aims uphill. A dotted arc previews its direction. Press Shift to spend one of three charges. The 1.4-second cooldown prevents instant spam. A good second landing can connect an isolated cluster; a poorly timed boost can miss it. Drums have visible burning fuses and smaller blasts, so their handoffs unfold in sequence.
 
 | Control | Action |
 | --- | --- |
-| A / D or ← / → | Choose a starting lane, steer, apply airborne aftertouch |
+| A / D or ← / → | Choose lane, steer, apply aftertouch, aim crashbreaker |
 | Hold / release Space | Charge / launch |
 | W or ↑ | Push for speed |
 | Space while riding | Bail |
-| Shift after bailing | Crashbreaker, three per run |
-| Hold Tab | Slow motion |
-| C | Cycle chase, side, and overhead cameras |
-| R | Restart the route |
-| V on results | Replay the recorded crash |
-| Enter | Start from menu or retry from results |
-| Esc | Pause / resume; return to routes from results |
-| H | Controls and crash guide |
+| 1 / 2 / 3 before launch | Tuck / Starfish / Torpedo; buttons also work |
+| F before launch | Clockwork crown / paper crane / traffic cone |
+| Shift after bailing | Fire aimed crashbreaker |
+| S or ↓ after bailing | Aim uphill |
+| Hold Tab | Extra slow motion |
+| Enter during crash | File the current claim immediately |
+| C | Chase / side / overhead camera |
+| R | Immediate retry |
+| V on results | Watch the recorded crash and injury progression |
+| Esc | Pause / resume; routes from results |
+| H | Controls guide |
 | M | Toggle sound |
 
-Each run ends when the crash settles or after 19 seconds of crash simulation. Results include property damage, rider impacts, objects wrecked, explosions, longest cascade, peak speed, and a medal. Personal bests and sound preference persist locally. All routes are open from the start.
+Claims settle after the action rests, after 16 simulated crash seconds, or after a maximum of 34 presentation seconds. You can file early with Enter. Replay cannot add payout. Fresh wrecks build a multiplier up to ×8; each object pays once. Each anatomical region has a finite injury settlement.
 
-## Three routes
+## Three different crash puzzles
 
-- **Civic Cascade:** 26 concrete stairs, three domino lanes, stacked cargo, rolling drums, and a taxi rank. Gold: 340,000.
-- **Night Market:** 32 stairs under lanterns and neon awnings. Fruit carts collide with dominoes and a fireworks drum supply. Gold: 325,000.
-- **Port Authority:** 38 stairs, cranes, containers, cargo towers, and a terminal drum avalanche. Gold: 550,000.
+| Route | Left line | Center line | Right line |
+| --- | --- | --- | --- |
+| Civic Cascade — 26 steps | Domino run into cargo | Body impacts and carts | Heavy taxi into stacked crates |
+| Night Market — 32 steps | Cart slalom | Cargo drop into drum supply | Domino fuse run |
+| Port Authority — 38 steps | Cargo-tower collapse | Domino-fed drum avalanche | Heavy taxi through terminal cargo |
 
-Different launch speeds, lines, bail points, and boost timing create different physical outcomes. A boost can rescue a stalled chain or send you past a useful target.
+The **$600,000 treatment fund** accumulates the best claim from each route. Better retries bank only the improvement; weaker retries never reduce savings. The game shows the current claim's potential contribution before settlement. Funding treatment produces a story ending, and all routes remain available for mastery. Mom's notes change by chapter. Cancer is the sincere stake; the insurer and exaggerated crashes supply the comedy.
 
-## Develop and verify
+Preferences, hats, and claim records persist locally. Old version-1 arcade records are retained separately and do not pre-fund the new story.
 
-Open `project.godot` in Godot. Tested with **Godot 4.7.2**. The source uses Godot 4 APIs and the Compatibility renderer. The macOS package uses the installed official universal Godot binary with an exported game PCK, so it is larger than a dedicated release-template build.
+## Design and verification
+
+The redesign follows research into [Porrasturvat's physics tuning](https://www.flipcode.com/archives/08-06-2003.shtml), [Stair Dismount's impact spectacle](https://apps.apple.com/us/app/stair-dismount/id326469137), and [Burnout CRASH's strategic high-value targets and pinball inspiration](https://news.ea.com/press-releases/press-releases-details/2011/EA-and-Criterion-Games-Announce-Burnout-CRASH/default.aspx). See [research and designer competition](docs/DESIGN_RESEARCH.md).
+
+Automated checks exercise real Godot rigid bodies, event dispatch, collisions, articulated poses, damage presentation, replay, input focus, progression, save migration, UI geometry, and audio resources. The telemetry checks whether decisions change physical outcomes and whether the campaign is attainable. They do **not** establish human enjoyment. See [measured results and limits](docs/VALIDATION.md).
 
 ```sh
 ./tools/test.sh
 ./tools/build_macos.sh
+./tools/check_package.sh
 ```
 
-The tests cover score and medal rules, staircase boundaries, all three complete gameplay loops, nine starting lines, real collision propagation, ragdoll joints, manual bail, finite boosts, pause, slow motion, replay, persistence, and interface text bounds. The runner fails on script errors and resource leaks as well as failed assertions.
+Open `project.godot` in Godot to develop. Tested with Godot 4.7.2 and the Compatibility renderer. The app uses the installed official universal Godot binary and an exported PCK; its download is larger than a dedicated release-template export.
 
-Original editable assets: `blender/stair_wreck_assets.blend`. The 15 model exports are in `assets/models/`. `blender/build_assets.py` regenerates them; this project generated them through the **Blender MCP background executor**. `tools/generate_audio.py` generates the original synth soundtrack and all effects without external samples.
+The editable asset studio is `blender/stair_wreck_assets.blend`, with 18 GLB models. `blender/build_assets.py` regenerates the core kit; `blender/build_hats.py` adds the designer hats. Both ran through **Blender MCP in background mode**. `tools/generate_audio.py` synthesizes all 11 audio assets without external samples. `tests/render_snapshot.gd` exports runtime scene geometry and UI bounds for `blender/render_validation.py`.
 
-`tests/render_snapshot.gd` exports actual runtime geometry, camera transforms, and Control bounds for `blender/render_validation.py`. Its Blender CPU renders are useful for inspecting sightlines and composition when a native display is unavailable. They use a different renderer and substitute font, so they are not native Godot screenshots.
-
-Game code, models, and audio are MIT licensed. The bundled engine and third-party notices are in `docs/GODOT_LICENSE.txt` and the app's Resources folder.
+Game code, models, and audio are MIT licensed. Engine and third-party notices are included in `docs/GODOT_LICENSE.txt` and the app.

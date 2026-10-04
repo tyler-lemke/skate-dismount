@@ -19,6 +19,12 @@ def sfx(name,duration):
         if name=='blast': v=(n*.7+math.sin(t*75)*.35)*math.exp(-t*4)*(1-math.exp(-t*120))
         elif name=='impact': v=(n*.42+math.sin(t*math.tau*(90-40*t))*.65)*math.exp(-t*22)
         elif name=='clack': v=(n*.55+math.sin(t*1700)*.2)*math.exp(-t*38)
+        elif name=='fracture':
+            pulse=t%.065;v=(n*.65+math.sin(t*math.tau*140)*.27)*math.exp(-pulse*70)*math.exp(-t*7)
+        elif name=='receipt': v=math.sin(t*math.tau*(1400 if t<.07 else 1865))*.18*math.exp(-t*22)
+        elif name=='funded':
+            chord=[261.626,329.628,391.995,523.251]
+            v=sum(math.sin(math.tau*f*t)*.10 for f in chord)*math.sin(math.pi*t/duration)*(.7+.3*math.sin(t*5))
         elif name=='boost':
             phase+=math.tau*(150+t*950)/RATE;v=(math.sin(phase)*.42+n*.13)*math.sin(math.pi*t/duration)
         elif name=='launch': v=math.sin(math.tau*(330+660*t)*t)*.4*math.sin(math.pi*t/duration)
@@ -26,7 +32,7 @@ def sfx(name,duration):
             note=[440,554.37,659.25,880][min(3,int(t/.14))];v=math.sin(math.tau*note*t)*.3*math.exp(-(t%.14)*12)*(1-t/duration)
         out.append(v)
     write(name,out)
-for k,d in [('blast',1.6),('impact',.28),('clack',.18),('boost',.8),('launch',.5),('finish',1.0)]:sfx(k,d)
+for k,d in [('blast',1.6),('impact',.28),('clack',.18),('boost',.8),('launch',.5),('finish',1.0),('fracture',.34),('receipt',.19),('funded',2.4)]:sfx(k,d)
 roll=[]; smooth=0
 for i in range(RATE*2):
     smooth=smooth*.86+random.uniform(-1,1)*.14
@@ -47,4 +53,4 @@ for i in range(int(total*RATE)):
     at=(b*2%1)*beat*.5;freq=arp[int(b*2)%8]*([1,1,.89,1][(bar//4)%4]);v+=math.sin(math.tau*freq*t)*math.exp(-at*13)*.055
     track.append(v)
 write('cascade',track,True)
-print('Generated 8 original WAV assets')
+print('Generated 11 original WAV assets')

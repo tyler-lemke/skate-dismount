@@ -14,7 +14,7 @@ func run() -> void:
 		for lane in [-3.3,0.0,3.3]:
 			game.select_route(route);game.start_ready();game.skater.position.x=lane;game.charge=.75;game.launch()
 			var ticks:int=0
-			while game.phase!=game.Phase.RESULTS and ticks<2400:
+			while game.phase!=game.Phase.RESULTS and ticks<3000:
 				await physics_frame;ticks+=1
 			check(game.phase==game.Phase.RESULTS,"route %d lane %s finishes"%[route,lane])
 			check(game.rules.destroyed>=3,"route %d lane %s starts a real chain"%[route,lane])

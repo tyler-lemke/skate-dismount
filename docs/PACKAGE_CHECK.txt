@@ -1,2 +1,7 @@
+STAIR // WRECK 2.0 — final package verification
 
-Universal macOS app signature: verified with codesign --verify --deep --strict.
+Built after sourcefinalC: modal input protection, results/replay hints, and stair-focused bail carry.
+Runtime: Godot 4.7.2, universal macOS executable (x86_64 and arm64).
+App: builds/StairWreck.app
+Archive: builds/StairWreck-macOS.zip
+

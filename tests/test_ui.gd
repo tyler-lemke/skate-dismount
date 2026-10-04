@@ -14,6 +14,11 @@ func verify(node:Node) -> void:
 			for line in node.text.split("\n"):
 				var width:float=font.get_string_size(line,HORIZONTAL_ALIGNMENT_LEFT,-1,size).x
 				check(width<=node.size.x+1,"label fits: "+line)
+		else:
+			var lines:int=node.get_line_count()
+			var line_spacing:int=node.get_theme_constant("line_spacing")
+			var height:float=lines*node.get_line_height()+maxi(0,lines-1)*line_spacing
+			check(lines>0 and height<=node.size.y+1,"wrapped label fits height: "+node.text.left(36))
 		var rect:Rect2=node.get_global_rect()
 		check(rect.position.x>=0 and rect.position.y>=0 and rect.end.x<=1440 and rect.end.y<=900,"label remains inside viewport: "+node.text.left(24))
 	if node is Button:
@@ -25,11 +30,53 @@ func run() -> void:
 	var game:Node=load("res://scenes/main.tscn").instantiate();root.add_child(game)
 	for i in 3:
 		game.select_route(i);await process_frame;verify(game.hud.root)
-	game.start_ready();game.hud.update_game(game.rules,"READY",0,1,3,19,false);verify(game.hud.root)
+	game.start_ready()
+	for i in WreckRules.POSES.size():
+		game.set_pose(i)
+		game.hud.update_game(game.rules,"READY",0,1,3,19,false)
+		await process_frame
+		check(game.hud.pose_note.text==WreckRules.POSES[i].tip,"ready pose description matches selected pose "+str(i))
+		check(game.hud.pose_note.get_line_count()>=2,"ready pose description wraps for pose "+str(i))
+		verify(game.hud.root)
+	for limb in WreckRules.LIMB_WEIGHTS:
+		game.rules.limb_damage[limb]=100.0
+		game.rules.limb_payout[limb]=99999
+	await process_frame
+	game.hud.update_game(game.rules,"CRASH",26,0,2,11,false)
+	check(game.hud.injury_panel.visible,"injury file is visible during a crash")
+	check(game.hud.anatomy_parts.size()==11,"all eleven body regions have a diagram shape")
+	for i in range(WreckHUD.LIMB_NAMES.size()-1):
+		var bar: ProgressBar=game.hud.limb_bars[WreckHUD.LIMB_NAMES[i]]
+		var next_bar: ProgressBar=game.hud.limb_bars[WreckHUD.LIMB_NAMES[i+1]]
+		check(bar.get_global_rect().end.y<next_bar.global_position.y,"adjacent severity bars do not overlap")
+	for limb in WreckRules.LIMB_WEIGHTS:
+		check(game.hud.anatomy_stage[limb]=="FRACTURED","diagram shows maximum severity for "+limb)
+	check(game.hud.anatomy_region_label.text=="HEAD" and game.hud.anatomy_payout_label.text=="CLAIM  $99,999","worst-region summary shows the filed limb amount")
+	game.hud.claim_event("Right upper arm / STEP",999999,true)
+	check(game.hud.claim_panel.visible and game.hud.claim_lines[0].text.contains("RIGHT UPPER ARM / STEP"),"long injury receipt is visible")
+	verify(game.hud.root)
+	game.skater.damage_states={"shin_r":45.0}
+	game.hud.update_game(game.rules,"REPLAY",26,0,2,11,false)
+	check(game.hud.injury_panel.visible,"injury file remains visible in replay")
+	check(game.hud.hint_label.text=="R retry / C camera\nESC pause" and game.hud.timer_label.text=="REPLAY / ESC PAUSE","replay hints name only available navigation")
+	check(game.hud.boost_label.text=="RECORDED CRASH" and game.hud.aim_label.text.contains("NO NEW PAYOUT"),"replay does not offer a live boost or claim")
+	for limb in WreckRules.LIMB_WEIGHTS:
+		check(game.hud.anatomy_stage[limb]==("STRAINED" if limb=="shin_r" else "OK"),"replay diagram follows snapshot for "+limb)
+	check(game.hud.anatomy_region_label.text=="RIGHT SHIN" and game.hud.anatomy_payout_label.text=="REPLAY SNAPSHOT","replay summary shows current injury without future payout")
+	verify(game.hud.root)
 	game.hud.help_panel.visible=true;verify(game.hud.help_panel);game.hud.help_panel.visible=false
 	game.hud.pause_panel.visible=true;verify(game.hud.pause_panel);game.hud.pause_panel.visible=false
 	game.rules.score=1234567;game.rules.destroyed=78;game.rules.explosions=17;game.rules.best_combo=78;game.rules.peak_speed=36
-	game.hud.show_results(game.rules,2,true);verify(game.hud.results)
+	game.phase=game.Phase.RESULTS
+	game.hud.show_results(game.rules,2,true)
+	game.hud.update_game(game.rules,"RESULTS",0,0,2,0,false)
+	check(game.hud.combo_label.text=="CLAIM SETTLED" and game.hud.timer_label.text=="C CAMERA / ESC ROUTES","settled claim shows result navigation")
+	check(game.hud.aim_label.text=="CLAIM SETTLED\nV REPLAY / R RETRY" and game.hud.boost_label.text=="CLAIM LOCKED","settled claim hides crash controls")
+	check(game.hud.hint_label.text=="R retry / V replay\nESC route select","settled claim has actionable hints")
+	check(game.hud.anatomy_stage["head"]=="FRACTURED" and game.hud.anatomy_payout_label.text=="CLAIM  $99,999","results restore the completed injury file")
+	verify(game.hud.root)
+	for i in 90: await process_frame
+	check(not game.hud.result_reveal_active and game.hud.result_score.text=="$1,234,567","settled payout reveal reaches the exact formatted total")
 	game.queue_free();await process_frame;await process_frame
 	print("UI: ",checks," checks, ",failures," failures")
 	quit(1 if failures else 0)

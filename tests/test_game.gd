@@ -45,18 +45,21 @@ func run() -> void:
 		check(game.phase==game.Phase.CRASH,"real obstacle impact triggers ragdoll")
 		check(game.skater.limbs.size()==12 and game.skater.joints.size()==10,"full rider and separate board with connected joints")
 		check(game.skater.speed()>10,"ragdoll inherits launch momentum")
-		key(KEY_TAB,true);check(is_equal_approx(Engine.time_scale,.32),"slow motion engages")
-		key(KEY_TAB,false);check(is_equal_approx(Engine.time_scale,1),"slow motion releases")
-		key(KEY_TAB,true);game.toggle_pause();game.toggle_pause()
-		check(is_equal_approx(Engine.time_scale,1) and not game.slow_motion,"pausing cannot leave slow motion stuck")
-		key(KEY_SHIFT,true);await frames(250)
-		key(KEY_SHIFT,true);await frames(250)
-		key(KEY_SHIFT,true);await frames(100)
+		key(KEY_TAB,true);check(is_equal_approx(Engine.time_scale,.25) or is_equal_approx(Engine.time_scale,.18),"slow motion engages beneath any active impact pulse")
+		key(KEY_TAB,false);check(is_equal_approx(Engine.time_scale,.55) or is_equal_approx(Engine.time_scale,.18),"slow motion releases to cinematic crash speed")
+		key(KEY_TAB,true);game.toggle_pause()
+		check(is_equal_approx(Engine.time_scale,1),"pause restores unscaled interface clock")
+		game.toggle_pause()
+		check((is_equal_approx(Engine.time_scale,.55) or is_equal_approx(Engine.time_scale,.18)) and not game.slow_motion,"resume restores crash pacing without sticky Tab")
+		for boost in range(3):
+			while game.boost_cooldown>0 and game.phase==game.Phase.CRASH: await frames(1)
+			key(KEY_SHIFT,true)
+		await frames(5)
 		var velocity:Vector3=game.skater.torso.linear_velocity
 		key(KEY_SHIFT,true)
 		check(game.boosts==0 and game.skater.torso.linear_velocity==velocity,"three crashbreakers; exhausted boost has no effect")
 		budget=0
-		while game.phase!=game.Phase.RESULTS and budget<1800:
+		while game.phase!=game.Phase.RESULTS and budget<3000:
 			await frames(1);budget+=1
 		check(game.phase==game.Phase.RESULTS,"run completes without player intervention")
 		check(game.skater.focus_position().y<25,"ragdoll stays near the arena after blast chains")
@@ -76,8 +79,8 @@ func run() -> void:
 		check(game.phase==game.Phase.MENU and game.rules.score==0 and game.replay_frames.is_empty(),"return to routes clears run and replay")
 		summaries.append(report)
 	# Isolated causal chain oracle: an untouched prop cannot score; a moved active one scores once.
-	game.select_route(0);game.start_ready();game.charge=.8;game.launch()
-	var prop:CrashProp=game.world.props[0];await frames(75)
+	game.select_route(0);game.start_ready();game.skater.position.x=4.3;game.charge=.8;game.launch()
+	var prop:CrashProp=game.world.props[0];await frames(30)
 	prop.shatter();check(game.rules.destroyed==0,"unarmed prop cannot shatter or score")
 	prop.activate(Vector3(0,15,30));await frames(120)
 	check(prop.broken and game.rules.destroyed>0,"activated prop physically tumbles into scored chain")

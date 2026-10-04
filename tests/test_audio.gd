@@ -5,7 +5,7 @@ func check(condition:bool,message:String) -> void:
 	checks+=1
 	if not condition:failures+=1;printerr("FAIL: ",message)
 func _initialize() -> void:
-	for name in ["cascade","roll","impact","blast","boost","launch","clack","finish"]:
+	for name in ["cascade","roll","impact","blast","boost","launch","clack","finish","fracture","receipt","funded"]:
 		var stream:AudioStreamWAV=load("res://assets/audio/"+name+".wav")
 		check(stream!=null,"audio imports: "+name)
 		if stream==null:continue

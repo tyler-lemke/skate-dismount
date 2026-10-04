@@ -39,7 +39,7 @@ scene.world=bpy.data.worlds.new('Runtime ambient');scene.world.use_nodes=True
 scene.world.node_tree.nodes['Background'].inputs[0].default_value=tuple(data['background']);scene.world.node_tree.nodes['Background'].inputs[1].default_value=.6
 sun_data=bpy.data.lights.new('Runtime directional','SUN');sun_data.energy=2.0;sun_data.angle=.08
 sun=bpy.data.objects.new('Runtime directional',sun_data);scene.collection.objects.link(sun);sun.rotation_euler=(math.radians(40),math.radians(-20),math.radians(-35))
-scene.render.engine='CYCLES';scene.cycles.samples=12;scene.cycles.use_denoising=False;scene.cycles.device='CPU'
+scene.render.engine='CYCLES';scene.cycles.samples=16;scene.cycles.use_denoising=True;scene.cycles.device='CPU'
 scene.render.resolution_x=data['width'];scene.render.resolution_y=data['height'];scene.render.resolution_percentage=100
 scene.view_settings.view_transform='Standard'
 scene.render.image_settings.file_format='PNG'

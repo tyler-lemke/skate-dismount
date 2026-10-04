@@ -17,6 +17,8 @@ var fuse: float = -1.0
 var game: Node
 var visual_broken: bool = false
 var damaged_material: StandardMaterial3D
+var fuse_material: StandardMaterial3D
+var fuse_clock: float = 0.0
 
 func _ready() -> void:
 	origin = global_position
@@ -33,8 +35,13 @@ func _ready() -> void:
 	physics_material_override = material
 
 func _physics_process(delta: float) -> void:
+	if not is_instance_valid(game) or not game.is_live(): return
 	grace = maxf(0.0, grace - delta)
 	if not armed: return
+	if explosive and fuse>0:
+		fuse_clock+=delta
+		if fuse_material:
+			fuse_material.emission_energy_multiplier=.35+absf(sin(fuse_clock*16))*1.8
 	if fuse > 0.0:
 		fuse -= delta
 		if fuse <= 0.0 and not broken: shatter()
@@ -42,7 +49,8 @@ func _physics_process(delta: float) -> void:
 		var travel: float = global_position.distance_to(origin)
 		var tilt: float = global_basis.y.dot(Vector3.UP)
 		if travel > 0.55 or tilt < 0.76:
-			shatter()
+			if explosive: ignite()
+			else: shatter()
 	if global_position.y < -12.0:
 		queue_free()
 
@@ -58,16 +66,23 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		hit_strength = maxf(relative, impulse)
 		if hit_strength > 0.7:
 			armed = true
+			if explosive: call_deferred("ignite")
 		if hit_strength >= threshold:
-			call_deferred("shatter")
+			if not explosive: call_deferred("shatter")
 			break
 
 func activate(impulse: Vector3) -> void:
 	armed = true
 	sleeping = false
 	apply_central_impulse(impulse)
-	if explosive and not broken and fuse < 0.0:
-		fuse = 0.16 + randf() * 0.25
+	if explosive: ignite()
+
+func ignite() -> void:
+	if broken or fuse>=0 or not armed: return
+	# Stable staggered fuses make the same setup learnable on a retry.
+	fuse=.68+float(int(get_meta("slot",0))%5)*.09
+	fuse_material=StandardMaterial3D.new(); fuse_material.albedo_color=Color("ff8b41"); fuse_material.emission_enabled=true; fuse_material.emission=Color("ff5924")
+	for mesh in visual.find_children("*","MeshInstance3D",true,false): mesh.material_override=fuse_material
 
 func shatter() -> void:
 	if broken or not armed or not is_instance_valid(game) or not game.is_live(): return

@@ -30,6 +30,7 @@ var is_paused: bool = false
 var paused_for_help: bool = false
 var slow_motion: bool = false
 var best_scores: Array[int] = [0,0,0]
+var legacy_scores: Array[int] = [0,0,0]
 var muted: bool = false
 var save_path: String = "user://records.json"
 var particles: Array[Dictionary] = []
@@ -47,6 +48,18 @@ var capture_dir: String = "res://docs/screenshots"
 var capture_flags: Dictionary = {}
 var pending_level: int = 0
 var run_serial: int = 0
+var pose_index: int = 0
+var time_rate: float = 1.0
+var impact_left: float = 0.0
+var impact_cooldown: float = 0.0
+var boost_cooldown: float = 0.0
+var crash_real_clock: float = 0.0
+var last_money_secured: int = 0
+var claim_events: Array[Dictionary] = []
+var cascade_focus: Vector3 = Vector3.ZERO
+var cascade_focus_left: float = 0.0
+var aim_marker: Node3D
+var selected_hat: int = 0
 
 func _ready() -> void:
 	process_mode=Node.PROCESS_MODE_ALWAYS
@@ -74,6 +87,7 @@ func _ready() -> void:
 	hud.help_closed.connect(func():
 		if paused_for_help: paused_for_help=false; unpause()
 	)
+	hud.pose_requested.connect(set_pose)
 	sound=Sound.new(); add_child(sound); sound.set_muted(muted)
 	select_route(pending_level)
 	if automate: start_ready()
@@ -84,29 +98,63 @@ func load_records() -> void:
 	if not data is Dictionary: return
 	var scores: Variant=data.get("best_scores",[])
 	if scores is Array and scores.size()==3:
-		for i in 3: best_scores[i]=clampi(int(scores[i]),0,999999999)
+		for i in 3:
+			if int(data.get("version",1))>=2: best_scores[i]=clampi(int(scores[i]),0,999999999)
+			else: legacy_scores[i]=clampi(int(scores[i]),0,999999999); best_scores[i]=0
+	var legacy: Variant=data.get("legacy_scores",[])
+	if legacy is Array and legacy.size()==3:
+		for i in 3: legacy_scores[i]=clampi(int(legacy[i]),0,999999999)
 	muted=bool(data.get("muted",false))
+	selected_hat=clampi(int(data.get("hat",0)),0,2)
 
 func save_records() -> void:
 	var file:=FileAccess.open(save_path,FileAccess.WRITE)
-	if file: file.store_string(JSON.stringify({"version":1,"best_scores":best_scores,"muted":muted}))
+	if file: file.store_string(JSON.stringify({"version":2,"best_scores":best_scores,"legacy_scores":legacy_scores,"muted":muted,"hat":selected_hat}))
+
+func fund_total() -> int:
+	return best_scores.reduce(func(total: int, amount: int): return total+amount,0)
+
+func set_pose(index: int) -> void:
+	if phase not in [Phase.MENU,Phase.READY]: return
+	pose_index=clampi(index,0,2)
+	skater.set_pose(pose_index)
+	skater.set_hat(selected_hat)
+	hud.toast(Rules.POSES[pose_index].name)
+
+func boost_direction() -> Vector3:
+	var side: float=steering()
+	var uphill: bool=Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN)
+	return Vector3(side*1.5,0,-1.0 if uphill else 1.0).normalized()
+
+func apply_time_rate() -> void:
+	time_rate=1.0
+	if not is_paused:
+		if phase==Phase.CRASH: time_rate=.55
+		if slow_motion and phase in [Phase.RUN,Phase.CRASH]: time_rate=.25
+		if impact_left>0 and phase==Phase.CRASH: time_rate=.18
+	Engine.time_scale=time_rate
 
 func select_route(index: int) -> void:
 	unpause()
 	level_index=clampi(index,0,2)
-	rules.reset(); replay_frames.clear(); replay_actors.clear(); particles.clear()
+	rules.reset(); replay_frames.clear(); replay_actors.clear(); particles.clear(); claim_events.clear()
 	if is_instance_valid(level_root):
 		remove_child(level_root); level_root.queue_free()
 	level_root=Node3D.new(); level_root.name="Route"; level_root.process_mode=Node.PROCESS_MODE_PAUSABLE; add_child(level_root)
 	world=World.new(); world.build(level_root,level_index,self)
 	skater=Rider.new(); skater.game=self; level_root.add_child(skater)
+	skater.set_pose(pose_index)
+	skater.set_hat(selected_hat)
 	var l:Dictionary=Rules.LEVELS[level_index]
-	skater.position=Vector3(0,l.steps*l.rise+.23,-13)
+	# Lead the first run into the readable domino chain; other routes open at their cargo/drum line.
+	skater.position=Vector3(-3.3 if level_index==0 else 0.0,l.steps*l.rise+.23,-13)
 	phase=Phase.MENU; charge=0; charging=false; run_speed=0; boosts=3; run_clock=0; crash_clock=0; camera_shake=0
+	impact_left=0; impact_cooldown=0; boost_cooldown=0; crash_real_clock=0; cascade_focus_left=0; aim_marker=null
+	apply_time_rate()
 	camera_target=Vector3(-5,l.steps*l.rise*.45,l.steps*l.run*.40)
 	camera.position=overview_position()
 	camera.look_at(camera_target)
-	hud.set_route(level_index,best_scores[level_index]); hud.show_menu()
+	hud.set_route(level_index,best_scores[level_index]); hud.update_campaign(); hud.show_menu()
 
 func start_ready() -> void:
 	if phase!=Phase.MENU: return
@@ -123,19 +171,26 @@ func back_to_menu() -> void:
 	select_route(level_index)
 
 func unpause() -> void:
-	get_tree().paused=false; is_paused=false; paused_for_help=false; Engine.time_scale=1.0; slow_motion=false
+	get_tree().paused=false; is_paused=false; paused_for_help=false; slow_motion=false; apply_time_rate()
 	if is_instance_valid(hud): hud.pause_panel.visible=false
 
 func toggle_pause() -> void:
 	if phase==Phase.MENU: return
 	if phase==Phase.RESULTS: back_to_menu(); return
 	is_paused=not is_paused; get_tree().paused=is_paused; hud.pause_panel.visible=is_paused
-	slow_motion=false;Engine.time_scale=1.0
+	if is_paused: charging=false
+	slow_motion=false;apply_time_rate()
 
 func toggle_mute() -> void:
 	muted=not muted; sound.set_muted(muted); save_records()
 	if hud.hud.visible: hud.toast("SOUND OFF" if muted else "SOUND ON")
 	else: hud.best_label.text="SOUND OFF" if muted else "SOUND ON"
+
+func _input(event: InputEvent) -> void:
+	# Launch and bail take priority over a pose button's default Space/ui_accept.
+	if event is InputEventKey and event.physical_keycode==KEY_SPACE and not event.echo and phase in [Phase.READY,Phase.RUN] and not is_paused and not hud.help_panel.visible:
+		_unhandled_input(event)
+		get_viewport().set_input_as_handled()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not event is InputEventKey or event.echo: return
@@ -147,6 +202,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if key==KEY_M and event.pressed: toggle_mute(); return
 	if is_paused or hud.help_panel.visible: return
 	if event.pressed:
+		if key==KEY_F and phase==Phase.READY:
+			selected_hat=(selected_hat+1)%3; skater.set_hat(selected_hat); save_records(); hud.toast(["CLOCKWORK CROWN","PAPER CRANE","TRAFFIC CONE"][selected_hat]); return
+		if key in [KEY_1,KEY_2,KEY_3] and phase==Phase.READY: set_pose(key-KEY_1); return
+		if key==KEY_ENTER and phase==Phase.CRASH: finish_run(); return
 		if key==KEY_R and phase!=Phase.MENU: retry(); return
 		if key==KEY_C: camera_style=(camera_style+1)%3; return
 		if key==KEY_H:
@@ -163,7 +222,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif charging: launch()
 		elif phase==Phase.RUN and event.pressed: bail_out()
 	if key==KEY_TAB and phase in [Phase.RUN,Phase.CRASH]:
-		slow_motion=event.pressed; Engine.time_scale=.32 if slow_motion else 1.0
+		slow_motion=event.pressed; apply_time_rate()
 
 func steering() -> float:
 	return float(Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT))-float(Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT))
@@ -173,7 +232,7 @@ func launch() -> void:
 	phase=Phase.RUN; charging=false; run_speed=6.5+charge*12.0; run_clock=0; lateral_speed=0; run_serial+=1
 	for prop in world.props:
 		prop.freeze=false; prop.grace=.65; prop.origin=prop.global_position
-	hud.toast("COMMIT TO THE CASCADE",WreckHUD.ORANGE); sound.play("launch")
+	hud.toast("CHASE THE BIGGEST CLAIM",WreckHUD.ORANGE); sound.play("launch")
 
 func is_live() -> bool:
 	return phase==Phase.RUN or phase==Phase.CRASH
@@ -215,7 +274,7 @@ func _physics_process(delta: float) -> void:
 			if is_instance_valid(prop) and prop.armed: movement=maxf(movement,prop.linear_velocity.length())
 		idle_clock=idle_clock+delta if movement<1.0 else 0.0
 		if automate and crash_clock>2.2 and boosts>0 and crash_clock>2.2+(3-boosts)*2.8: crashbreaker()
-		if (crash_clock>7 and idle_clock>2.0) or crash_clock>=19.0 or skater.focus_position().y < -8.0: finish_run()
+		if (crash_clock>3 and idle_clock>1.25) or crash_clock>=16.0 or crash_real_clock>=34.0 or skater.focus_position().y < -8.0: finish_run()
 	if is_live():
 		record_clock+=delta
 		if record_clock>=.05: record_clock=0; record_frame()
@@ -223,17 +282,21 @@ func _physics_process(delta: float) -> void:
 func bail_out() -> void:
 	if phase!=Phase.RUN: return
 	phase=Phase.CRASH; crash_clock=0; idle_clock=0
-	skater.bail(Vector3(lateral_speed,-1.4,run_speed),2.3)
+	# The board's obstacle strike keeps full approach momentum. The rider falls
+	# into the stair noses instead of sailing above them to the taxi plaza.
+	skater.bail(Vector3(lateral_speed*.9,-2.2,run_speed*.72),.5)
+	apply_time_rate()
+	build_aim_marker()
 	replay_actors.clear()
 	for prop in world.props: replay_actors.append(prop)
 	for body in skater.limbs: replay_actors.append(body)
 	replay_frames.clear()
-	hud.toast("BAIL!   SHIFT = CRASHBREAKER",WreckHUD.ORANGE)
-	sound.play("impact"); camera_shake=.25
+	hud.toast(Rules.POSES[pose_index].name+"   /   AIM A D + SHIFT",WreckHUD.ORANGE)
+	sound.play("launch"); camera_shake=.12
 
 func crashbreaker() -> void:
-	if phase!=Phase.CRASH or boosts<=0: return
-	boosts-=1; skater.aftertouch(Vector3.ZERO,true,0)
+	if phase!=Phase.CRASH or boosts<=0 or boost_cooldown>0: return
+	boosts-=1; boost_cooldown=1.4; skater.launch_impulse(boost_direction(),8.5)
 	var position: Vector3=skater.focus_position()
 	burst(position,Color("84efbc"),25,7.0)
 	hud.toast("CRASHBREAKER!",WreckHUD.MINT); sound.play("boost"); camera_shake=.35
@@ -242,14 +305,18 @@ func crashbreaker() -> void:
 		if not is_instance_valid(prop): continue
 		var offset: Vector3=prop.global_position-position
 		var distance: float=offset.length()
-		if distance<4.8:
-			var direction: Vector3=(offset+Vector3(0,1.5,3)).normalized()
-			prop.activate(direction*prop.mass*(9.0-distance))
+		if distance<3.8:
+			var direction: Vector3=(offset+Vector3(0,.5,0)+boost_direction()*2.5).normalized()
+			prop.activate(direction*prop.mass*(7.5-distance))
 
 func prop_wrecked(prop: CrashProp, explosive: bool) -> void:
 	if not is_live(): return
 	var points: int=rules.hit_prop(prop.get_instance_id(),prop.value,explosive)
 	if points==0: return
+	claim_events.append({"time":crash_clock,"type":"property","part":prop.kind,"payout":points,"at":prop.global_position})
+	hud.claim_event(prop.kind.to_upper(),points)
+	sound.play("receipt")
+	cascade_focus=prop.global_position; cascade_focus_left=.8
 	if explosive:
 		burst(prop.global_position,Color("ff9548"),35,11.0)
 		burst(prop.global_position,Color("ffd278"),14,6.0)
@@ -259,8 +326,8 @@ func prop_wrecked(prop: CrashProp, explosive: bool) -> void:
 			if not is_instance_valid(other) or other==prop: continue
 			var offset: Vector3=other.global_position-at
 			var distance: float=offset.length()
-			if distance<5.2:
-				other.activate((offset+Vector3(0,.6,1.8)).normalized()*other.mass*(12.0-distance*1.8))
+			if distance<3.4:
+				other.activate((offset+Vector3(0,.5,1.0)).normalized()*other.mass*(8.5-distance*1.5))
 		for body in skater.limbs:
 			if is_instance_valid(body) and body.global_position.distance_to(at)<5.2:
 				body.apply_central_impulse((body.global_position-at+Vector3(0,.3,1.5)).normalized()*body.mass*3.5*(1.0-body.global_position.distance_to(at)/5.2))
@@ -270,10 +337,19 @@ func prop_wrecked(prop: CrashProp, explosive: bool) -> void:
 	if rules.combo % 5==0 or explosive:
 		hud.toast(("DRUM DETONATION" if explosive else "%d OBJECT CASCADE" % rules.combo)+"   ×%d" % rules.multiplier(),WreckHUD.ORANGE if explosive else WreckHUD.MINT)
 
-func rider_hit(limb: String, force: float, at: Vector3) -> void:
+func rider_hit(limb: String, force: float, at: Vector3, source: String = "") -> void:
 	if phase!=Phase.CRASH: return
 	var id: String="%d:%s:%d" % [run_serial,limb,int(crash_clock*4)]
-	var points: int=rules.hit_rider(id,force)
+	var old_stage: String=Rules.injury_stage(rules.limb_damage.get(limb,0.0))
+	var points: int=rules.hit_rider(id,force,limb)
+	if points<=0: return
+	skater.set_limb_damage(limb,rules.limb_damage.get(limb,0.0))
+	claim_events.append({"time":crash_clock,"type":"injury","part":limb,"payout":points,"at":at,"source":source})
+	hud.claim_event(Rules.limb_title(limb)+(" / STEP" if source.begins_with("Tread_") else ""),points,true)
+	var new_stage: String=Rules.injury_stage(rules.limb_damage.get(limb,0.0))
+	if new_stage=="FRACTURED" and old_stage!=new_stage: sound.play("fracture")
+	if force>=8 and impact_cooldown<=0:
+		impact_left=.28; impact_cooldown=1.1; apply_time_rate()
 	if points>150:
 		burst(at,Color("f4e1b2"),4,3.0)
 		camera_shake=minf(.6,camera_shake+force*.004)
@@ -282,12 +358,15 @@ func rider_hit(limb: String, force: float, at: Vector3) -> void:
 func finish_run() -> void:
 	if phase!=Phase.CRASH: return
 	phase=Phase.RESULTS; Engine.time_scale=1.0; slow_motion=false
+	time_rate=1; impact_left=0
+	if is_instance_valid(aim_marker): aim_marker.visible=false
+	last_money_secured=maxi(0,rules.score-best_scores[level_index])
 	result_was_best=rules.score>best_scores[level_index]
 	if result_was_best:
 		best_scores[level_index]=rules.score
 		if not self_check: save_records()
 	freeze_actors()
-	hud.show_results(rules,level_index,result_was_best); sound.play("finish")
+	hud.update_campaign(last_money_secured); hud.show_results(rules,level_index,result_was_best); sound.play("funded" if fund_total()>=Rules.TREATMENT_GOAL and fund_total()-last_money_secured<Rules.TREATMENT_GOAL else "finish")
 	if self_check:
 		print("SELF_CHECK: level=",level_index+1," score=",rules.score," wrecks=",rules.destroyed," explosions=",rules.explosions," frames=",replay_frames.size())
 		get_tree().quit(0 if rules.destroyed>=4 and rules.score>3000 else 1)
@@ -305,16 +384,22 @@ func record_frame() -> void:
 	for prop in world.props: damage_states.append(prop.broken if is_instance_valid(prop) else true)
 	for actor in replay_actors:
 		transforms.append(actor.global_transform if is_instance_valid(actor) else Transform3D.IDENTITY)
-	replay_frames.append({"transforms":transforms,"camera":camera.global_transform,"score":rules.score,"speed":skater.speed(),"damage":damage_states})
+	replay_frames.append({"transforms":transforms,"camera":camera.global_transform,"score":rules.score,"speed":skater.speed(),"damage":damage_states,"limbs":rules.limb_damage.duplicate()})
 
 func start_replay() -> void:
 	if phase!=Phase.RESULTS or replay_frames.size()<2: return
 	phase=Phase.REPLAY; replay_clock=0; hud.results.visible=false; hud.replay_banner.visible=true
+	Engine.time_scale=1.0; time_rate=1
 	hud.power_panel.visible=false; freeze_actors()
 	hud.toast("CINEMATIC REPLAY")
 
 func _process(delta: float) -> void:
 	if is_paused or not is_instance_valid(skater): return
+	var real_delta: float=delta/maxf(.01,Engine.time_scale)
+	impact_left=maxf(0,impact_left-real_delta); impact_cooldown=maxf(0,impact_cooldown-real_delta)
+	boost_cooldown=maxf(0,boost_cooldown-real_delta); cascade_focus_left=maxf(0,cascade_focus_left-real_delta)
+	if phase==Phase.CRASH: crash_real_clock+=real_delta
+	apply_time_rate()
 	if phase==Phase.REPLAY:
 		replay_clock+=delta*.72
 		var cursor: float=replay_clock/.05
@@ -323,6 +408,7 @@ func _process(delta: float) -> void:
 			phase=Phase.RESULTS; hud.replay_banner.visible=false; hud.show_results(rules,level_index,result_was_best)
 			for prop in world.props:
 				if is_instance_valid(prop): prop.set_damaged_visual(prop.broken)
+			skater.apply_damage_states(rules.limb_damage)
 		else:
 			var a:Dictionary=replay_frames[i]; var b:Dictionary=replay_frames[i+1]; var t:float=cursor-i
 			for j in replay_actors.size():
@@ -330,12 +416,14 @@ func _process(delta: float) -> void:
 					replay_actors[j].global_transform=a.transforms[j].interpolate_with(b.transforms[j],t)
 					if replay_actors[j] is CrashProp: replay_actors[j].set_damaged_visual(a.damage[j])
 			camera.global_transform=a.camera.interpolate_with(b.camera,t)
-			hud.update_game(rules,"REPLAY",a.speed,0,boosts,0,false); hud.score_label.text=Rules.money(a.score)
+			skater.apply_damage_states(a.limbs)
+			hud.update_game(rules,"REPLAY",a.speed,0,boosts,0,false); hud.score_label.text="$"+Rules.money(a.score)
 		return
-	update_camera(delta)
+	update_camera(real_delta)
+	update_aim_marker()
 	update_particles(delta)
 	var speed:float=skater.speed() if skater.ragdoll else run_speed
-	hud.update_game(rules,Phase.keys()[phase],speed,charge,boosts,19.0-crash_clock,slow_motion)
+	hud.update_game(rules,Phase.keys()[phase],speed,charge,boosts,16.0-crash_clock,slow_motion)
 	sound.update_roll(speed,phase==Phase.RUN)
 	if capture_mode: capture_progress()
 
@@ -359,6 +447,12 @@ func update_camera(delta: float) -> void:
 		desired=target+Vector3(17.0,10.0,8.0); focus=target
 	else:
 		desired=target+Vector3(0,22,4); focus=target
+	if phase==Phase.CRASH and camera_style==0:
+		focus=target+Vector3(0,-.25,1)
+		desired=target+Vector3(5.8,3.4,-6.8)
+		if cascade_focus_left>0 and target.distance_to(cascade_focus)<10:
+			focus=focus.lerp(cascade_focus,.25)
+		if impact_left>0: desired=target+Vector3(4.8,2.8,-5.8)
 	if phase==Phase.RESULTS:
 		desired=target+Vector3(12,10,-14); focus=target
 	var blend:float=1.0-exp(-delta*4.0)
@@ -367,7 +461,26 @@ func update_camera(delta: float) -> void:
 	camera_shake=move_toward(camera_shake,0,delta*.65)
 	var shake:Vector3=Vector3(rng.randf_range(-1,1),rng.randf_range(-1,1),0)*camera_shake
 	camera.look_at(camera_target+shake)
-	camera.fov=lerpf(camera.fov,58+clampf(run_speed,0,31)*.34 if phase==Phase.RUN else 58,blend)
+	camera.fov=lerpf(camera.fov,58+clampf(run_speed,0,31)*.34 if phase==Phase.RUN else 52,blend)
+	# Keep the lens above the stair surface when a body rolls behind a riser.
+	camera.position.y=maxf(camera.position.y,Rules.surface_y(Rules.LEVELS[level_index],camera.position.z)+1.0)
+
+func build_aim_marker() -> void:
+	aim_marker=Node3D.new(); level_root.add_child(aim_marker)
+	for i in 5:
+		var mesh:=MeshInstance3D.new(); var ball:=SphereMesh.new(); ball.radius=.10+i*.018; ball.height=ball.radius*2; mesh.mesh=ball
+		var mat:=StandardMaterial3D.new(); mat.albedo_color=WreckHUD.MINT; mat.emission_enabled=true; mat.emission=WreckHUD.MINT; mat.emission_energy_multiplier=.7; mat.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED; mesh.material_override=mat
+		aim_marker.add_child(mesh)
+
+func update_aim_marker() -> void:
+	if not is_instance_valid(aim_marker): return
+	aim_marker.visible=phase==Phase.CRASH and boosts>0
+	if not aim_marker.visible: return
+	var start: Vector3=skater.focus_position()
+	var direction: Vector3=boost_direction()
+	for i in aim_marker.get_child_count():
+		var t: float=(i+1)*.42
+		aim_marker.get_child(i).global_position=start+direction*t*3.0+Vector3(0,.9+sin(t)*.9,0)
 
 func burst(at: Vector3, color: Color, count: int, speed: float) -> void:
 	if test_mode or DisplayServer.get_name()=="headless": return

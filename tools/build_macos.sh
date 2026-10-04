@@ -24,8 +24,9 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>STAIR WRECK</string>
 <key>CFBundleDisplayName</key><string>STAIR WRECK</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.0</string>
-<key>CFBundleVersion</key><string>1.0</string>
+<!-- Version 2 adds persistent injuries, treatment claims, pose choices and hats. -->
+<key>CFBundleShortVersionString</key><string>2.0</string>
+<key>CFBundleVersion</key><string>2.0</string>
 <key>CFBundleIconFile</key><string>StairWreck.icns</string>
 <key>LSMinimumSystemVersion</key><string>11.0</string>
 <key>NSHighResolutionCapable</key><true/>
