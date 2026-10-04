@@ -5,6 +5,16 @@ func _initialize() -> void:call_deferred("run")
 func check(condition:bool,message:String) -> void:
 	checks+=1
 	if not condition:failures+=1;printerr("FAIL: ",message)
+func click(at:Vector2) -> void:
+	var press:=InputEventMouseButton.new()
+	press.button_index=MOUSE_BUTTON_LEFT
+	press.position=at
+	press.global_position=at
+	press.pressed=true
+	root.push_input(press,true)
+	var release:InputEventMouseButton=press.duplicate()
+	release.pressed=false
+	root.push_input(release,true)
 func verify(node:Node) -> void:
 	if node is Control and not node.is_visible_in_tree():return
 	if node is Label and node.text!="":
@@ -30,7 +40,31 @@ func run() -> void:
 	var game:Node=load("res://scenes/main.tscn").instantiate();root.add_child(game)
 	for i in 3:
 		game.select_route(i);await process_frame;verify(game.hud.root)
-	game.start_ready()
+	game.hud.help_panel.visible=true
+	await process_frame
+	click(Vector2(100,710))
+	await process_frame
+	check(game.phase==game.Phase.MENU and game.hud.help_panel.visible,"help backdrop blocks the underlying File a Claim button")
+	click(Vector2(500,710))
+	await process_frame
+	check(not game.hud.help_panel.visible and game.phase==game.Phase.MENU,"help close button remains clickable over its backdrop")
+	click(Vector2(100,710))
+	await process_frame
+	check(game.phase==game.Phase.READY,"File a Claim button receives the same click after help closes")
+	game.toggle_pause()
+	await process_frame
+	click(Vector2(1380,150))
+	await process_frame
+	check(game.is_paused and game.hud.pause_panel.visible,"pause backdrop blocks the underlying HUD pause button")
+	click(Vector2(600,337))
+	await process_frame
+	check(not game.is_paused and not game.hud.pause_panel.visible,"pause resume button remains clickable over its backdrop")
+	click(Vector2(1380,150))
+	await process_frame
+	check(game.is_paused and game.hud.pause_panel.visible,"HUD pause button receives the same click after pause closes")
+	click(Vector2(600,337))
+	await process_frame
+	check(not game.is_paused and not game.hud.pause_panel.visible,"resume button restores gameplay after HUD pause")
 	for i in WreckRules.POSES.size():
 		game.set_pose(i)
 		game.hud.update_game(game.rules,"READY",0,1,3,19,false)
