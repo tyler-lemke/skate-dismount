@@ -11,20 +11,25 @@ scene=bpy.context.scene
 scene.name='Godot_Runtime_Validation'
 C=Matrix(((1,0,0,0),(0,0,-1,0),(0,1,0,0),(0,0,0,1)))
 materials={};meshes={}
-def material(color,emission=0):
-    key=tuple(color)+(emission,)
+def material(color,emission=0,metallic=0,roughness=.75,vertex_color=False):
+    key=tuple(color)+(emission,metallic,roughness,vertex_color)
     if key not in materials:
         m=bpy.data.materials.new('Runtime material');m.diffuse_color=tuple(color);m.use_nodes=True
-        bs=m.node_tree.nodes.get('Principled BSDF');bs.inputs['Base Color'].default_value=tuple(color);bs.inputs['Roughness'].default_value=.75
+        bs=m.node_tree.nodes.get('Principled BSDF');bs.inputs['Base Color'].default_value=tuple(color);bs.inputs['Roughness'].default_value=roughness;bs.inputs['Metallic'].default_value=metallic
+        if vertex_color:
+            attr=m.node_tree.nodes.new('ShaderNodeVertexColor');attr.layer_name='RuntimeColor';m.node_tree.links.new(attr.outputs['Color'],bs.inputs['Base Color'])
         if emission:bs.inputs['Emission Color'].default_value=tuple(color);bs.inputs['Emission Strength'].default_value=emission*.5
         materials[key]=m
     return materials[key]
 for key,surfaces in data['meshes'].items():
-    verts=[];faces=[];ids=[]
+    verts=[];faces=[];ids=[];colors=[]
     for i,surface in enumerate(surfaces):
         offset=len(verts);verts.extend(surface['vertices']);faces.extend(tuple(j+offset for j in f) for f in surface['faces']);ids.extend([i]*len(surface['faces']))
+        colors.extend(surface.get('vertex_colors') or [surface['color']]*len(surface['vertices']))
     mesh=bpy.data.meshes.new(key);mesh.from_pydata(verts,[],faces);mesh.update()
-    for surface in surfaces:mesh.materials.append(material(surface['color'],surface['emission']))
+    for surface in surfaces:mesh.materials.append(material(surface['color'],surface['emission'],surface.get('metallic',0),surface.get('roughness',.75),bool(surface.get('vertex_colors'))))
+    attribute=mesh.color_attributes.new(name='RuntimeColor',type='FLOAT_COLOR',domain='CORNER')
+    for loop in mesh.loops:attribute.data[loop.index].color=colors[loop.vertex_index]
     for poly,i in zip(mesh.polygons,ids):poly.material_index=i;poly.use_smooth=surfaces[i]['smooth']
     meshes[key]=mesh
 for i,instance in enumerate(data['instances']):

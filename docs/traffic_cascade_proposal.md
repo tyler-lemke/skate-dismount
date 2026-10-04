@@ -1,6 +1,29 @@
 # Traffic as the second act of the crash
 
-Design proposal only. No gameplay, model, build or test changes were made. Source inspection supports the contracts below; human enjoyment and live rendering have not been validated. Numbers are initial experiment settings, not measured tuning.
+This document began as a design-only proposal. The implementation and measured results below supersede the original tuning hypotheses. Headless Godot physics establishes the stated objective behaviours; it does not establish human enjoyment or native visual readability.
+
+## Implemented and measured
+
+`scripts/traffic_car.gd` implements a finite three-car fleet per level. Each vehicle, including the parked third car, remains the same `RigidBody3D` throughout driving, impact, settlement and replay. Bounded motor/steering forces and headway braking run only in DRIVE/BRAKE; substantial physical contact permanently releases the driver into UNCONTROLLED/SETTLED for that attempt. Tire-control loss reduces passive hull friction from .16 to .055 and linear damping from .10 to .04, preserving skid momentum without adding force or setting a new velocity. Ordinary driving never arms, damages or pays a car. Qualified physical contacts propagate player cause and one-time claims; one subsequent solver tick retains actual contact evidence for callback-order independence, with no distance-based qualification.
+
+The single crashbreaker is available at bail and consumed once. Its primary effect relaunches the rider; the tight debris pulse has one capped budget. The measured B/C victims are outside direct pulse reach. Traffic advances from launch using simulation time, freezes for results/replay, and has a fixed roster with no payable recycling. Untouched vehicles leave through open road ends; credited wrecks remain. Snapshots preserve wheel phase, brake lights, driver display state and damage. The hero taxi's `Body/Crumple` morph retains glazing/wheels; body paint identifies A/B/C as gold, mint and cream.
+
+The authored encounter is Civic's passing lanes and staggered taxi rank, Market's slow turning pickup plus faster through-car and angled queued cab, and Port's diagonal approach plus physical terminal gate. All preserve the default stair-damage routes. The outside-left approach is a deliberate alternate strategy that avoids early obstacles and bails on the last treads. Civic's stationary stair taxi now transfers into five nearby dominoes instead of relying on its old oversized launch to cross an empty gap.
+
+### Reproduction
+
+Run `godot --headless --path . --fixed-fps 60 --script tests/test_traffic.gd --log-file /absolute/project/builds/test_traffic.log -- --test-mode`. The test dispatches real input through `Input.parse_input_event`, rather than calling input handlers directly:
+
+1. Select a route and enter READY. Hold A until the rider reaches the outside-left limit: x −4.7 / −5.2 / −5.7 for Civic / Market / Port. Release A.
+2. Hold Space until charge is at least .75, then release. The measured discrete charge is .751111; launch and traffic begin together.
+3. Coast down the clear outside approach. Press and release Space at stair-end minus two metres: z 26.6 / 33.84 / 42.08. This is a genuine late-tread bail.
+4. At .5 simulation seconds after bail, press and release Shift once, aiming forward. Let the actual cascade settle; do not stage vehicles beside the body or directly damage secondary victims.
+
+Final evidence: **93 checks, zero failures** in `tests/test_traffic.gd`; telemetry is `builds/traffic_report.json`, with raw engine output in `builds/test_traffic.output.log`. All three input-driven runs recorded physical A→B→C contacts and all three vehicles damaged and entered the score-once ledger, with payouts **$46,895 / $40,536 / $56,646**. C inherited its cause from B in every route, rather than a rider or pulse. Third-victim normal strengths were approximately **2.43 / 2.43 / 2.92**, against an unchanged threshold of 2.0. Three traffic-only runs produced zero uncontrolled vehicles and zero claims over 1,800 physics frames each. Headway fixtures stopped safely at 4, 6 and 8 m/s. The isolated displaced-B control left C healthy and uncredited; near-simultaneous three-body transfer also passed both actor insertion orders. Snapshot restoration added no claims.
+
+Civic and Port additionally produced all-three damage at .2 and .8 simulation-second breaker timings in exploratory runs. Market's slower turning pickup has a narrower strong-claim window around .5: earlier/later tested interventions could still create physical contacts while leaving the third hit below the damage threshold. This is a higher-skill timing choice, not proof of an accessible human experience. Fresh native playtests still need to establish that the road cue, sole intervention and ensuing chain are understandable.
+
+The existing nine standard-lane route regressions also pass **41 checks, zero failures**. Civic's right stair-taxi route records ten wrecked props after the short transfer bridge. Native screenshots, broader game tests and final packaging are owned by the coordinating agent; this report does not claim those independently verified.
 
 ## Choice
 
@@ -15,7 +38,9 @@ Use a small fixed fleet of **RigidBody3D cars with bounded force/torque driver c
 
 The first prototype is Civic with **two moving taxis and one queued third car**, one crashbreaker and no explosives beside the road. The observable goal is: **one player-seeded vehicle physically strikes a second, which physically strikes a third**. It is not enough for one shockwave to independently damage three cars, or for the third merely to be nearby. All three actors can initially remain visible and preallocated; prove this chain before implementing hidden entry/exit lifecycle details.
 
-## Proven source constraints
+## Original source constraints motivating the change
+
+The line references in this section describe the pre-traffic audit baseline, not unresolved defects in the current implementation.
 
 - `scripts/crash_prop.gd:48–53` damages an armed prop after travel exceeds 0.55 metres or tilt passes a threshold. Driving must neither arm cars nor use travel from spawn as evidence of damage. A weak later touch must not cash out metres of earlier normal driving.
 - `scripts/world_builder.gd:192–193` adds a prop to the tree before assigning its spawn position; `_ready()` captures `origin` first (`scripts/crash_prop.gd:23–24`). `main.gd:234` currently repairs that origin at launch. A scheduled traffic spawn needs an explicit final-transform initialization rather than relying on this ordering.

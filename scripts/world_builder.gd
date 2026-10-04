@@ -12,6 +12,7 @@ var game: Node
 var level: Dictionary
 var index: int
 var props: Array[CrashProp] = []
+var traffic: Array[TrafficCar] = []
 var mats: Dictionary = {}
 var decor_rng := RandomNumberGenerator.new()
 
@@ -61,11 +62,18 @@ func build(parent: Node3D, level_index: int, owner_game: Node) -> void:
 		beam(Vector3(x,h+1.4,0),Vector3(x,1.4,length),.075,"steel")
 		beam(Vector3(x,h+.85,0),Vector3(x,.85,length),.04,"accent")
 	static_box("Crash plaza",Vector3(0,-.25,length+9),Vector3(34,.5,18),"concrete")
+	# Flat cross-road continues through genuine curb openings; no invisible wrap.
+	static_box("Traffic cross road",Vector3(0,-.25,length+6.5),Vector3(76,.5,10),"asphalt")
 	static_box("Containment at end",Vector3(0,4.0,length+18),Vector3(36,8.0,.8),"ink")
 	label_3d("END OF THE LINE",Vector3(0,5.5,length+17.58),.75,level.color,Vector3(0,PI,0))
 	label_3d("THANK YOU FOR YOUR COLLATERAL",Vector3(0,4.3,length+17.57),.26,Color("eff5ec"),Vector3(0,PI,0))
 	for x in [-15.5,15.5]:
-		static_box("Plaza side curb",Vector3(x,.45,length+9),Vector3(.5,.9,18),"ink")
+		static_box("Plaza upper curb",Vector3(x,.45,length+.65),Vector3(.5,.9,1.3),"ink")
+		static_box("Plaza lower curb",Vector3(x,.45,length+15),Vector3(.5,.9,6),"ink")
+	for x in range(-30,31,4):
+		box(Vector3(x,.015,length+5.35),Vector3(1.6,.025,.08),"yellow")
+	for lane_z in [3.7,7.0]:
+		label_3d("TRAFFIC  >>>",Vector3(9,.035,length+lane_z),.18,level.color,Vector3(-PI/2,0,0))
 	# Start-line runway, arrow inlays, and readable track branding.
 	for z in [-14,-10,-6,-2]:
 		for x in [-2.5,0,2.5]:
@@ -80,6 +88,7 @@ func build(parent: Node3D, level_index: int, owner_game: Node) -> void:
 	label_3d("STAIR // WRECK",Vector3(0,h+4,-25.81),.34,Color("84efbc"))
 	label_3d("COMMIT TO THE CASCADE",Vector3(0,h+.08,-7),.19,Color("182b37"),Vector3(-PI/2,0,0))
 	populate_props()
+	populate_traffic()
 	if index == 0: civic_scenery(h,length)
 	elif index == 1: market_scenery(h,length)
 	else: port_scenery(h,length)
@@ -124,13 +133,15 @@ func populate_props() -> void:
 		for step in range(4,13): spawn("domino",-3.3,step*level.run+.5)
 		for step in [8,12,16]: spawn("cart",0,step*level.run+.5)
 		spawn("taxi",3.3,7*level.run+.7)
+		# A finite-mass taxi transfers to nearby light props instead of requiring
+		# the old mass-scaled launch to cross a seven-metre empty gap.
+		for step in range(9,14): spawn("domino",3.3,step*level.run+.5)
 		for step in [14,20]:
 			for side in [-1,1]:
 				for layer in range(3):
 					for offset in [-.52,.52]: spawn("crate",side*3.25+offset,step*level.run+.5,layer*1.05)
 		for step in [17,23]:
 			for x in [-3.25,0,3.25]: spawn("barrel",x,step*level.run+.5)
-		for x in [-4.5,0,4.5]: spawn("taxi",x,level.steps*level.run+5)
 	elif index == 1:
 		for step in [4,8,12,17,22]: spawn("cart",-3.3,step*level.run+.55)
 		for step in range(5,16): spawn("domino",3.3,step*level.run+.5)
@@ -139,8 +150,8 @@ func populate_props() -> void:
 				for x in [-.55,.55]: spawn("crate",x,step*level.run+.4,layer*1.05)
 		for step in [19,27]:
 			for x in [-3.7,-1.2,1.2,3.7]: spawn("barrel",x,step*level.run+.5)
-		for x in [-4.5,0,4.5]: spawn("taxi",x,level.steps*level.run+6)
-		for x in [-2,0,2]: spawn("cart",x,level.steps*level.run+2)
+		# Delivery bay is beside the turn, not inside its swept hull.
+		for x in [6.0,7.7,9.4]: spawn("cart",x,level.steps*level.run+.7)
 	else:
 		for step in [5,13,23,32]:
 			for layer in range(3):
@@ -153,8 +164,8 @@ func populate_props() -> void:
 		for step in [14,21,29,36]:
 			for x in [-3.3,0,3.3]: spawn("barrel",x,step*level.run+.5)
 		for x in [-5.2,-2.6,0,2.6,5.2]: spawn("barrel",x,level.steps*level.run+2)
-		for x in [-5,0,5]: spawn("taxi",x,level.steps*level.run+7)
-	for x in [-4.7,4.7]: spawn("cone",x,-1.4)
+	# Leave the outside approach strips clear, including the launch apron.
+	for x in [-2.0,2.0]: spawn("cone",x,-1.4)
 	for x in [-5.6,5.6]: spawn("barrier",x,level.steps*level.run+11)
 	# Physical lane signs preview the choice before any button press.
 	var routes: Array = [["DOMINO RUN","BODY + CARTS","PREMIUM TAXI"],["CART SLALOM","CARGO DROP","FUSE RUN"],["TOWER FALL","DRUM AVALANCHE","HEAVY HITTER"]][index]
@@ -163,11 +174,13 @@ func populate_props() -> void:
 		var x: float=(lane-1)*3.3
 		label_3d(routes[lane],Vector3(x,h+.10,-3.4),.12,level.color,Vector3(-PI/2,0,0))
 		box(Vector3(x,h+.026,-2.6),Vector3(2.2,.035,.08),"accent")
+	label_3d("SKATE TO TRAFFIC",Vector3(-level.width*.5+.82,h+.10,-4.8),.11,level.color,Vector3(-PI/2,0,0))
 
 func spawn(kind: String, x: float, z: float, stack: float = 0) -> CrashProp:
 	var prop := CrashProp.new()
 	prop.game = game; prop.kind = kind
 	prop.name = "%s_%03d" % [kind,props.size()]
+	prop.stable_id = prop.name.to_upper()
 	prop.set_meta("slot",props.size())
 	prop.freeze = true
 	var size: Vector3
@@ -177,7 +190,7 @@ func spawn(kind: String, x: float, z: float, stack: float = 0) -> CrashProp:
 		"barrel": size=Vector3(.8,1.04,.8); y=.52; prop.mass=8.0; prop.value=1800; prop.explosive=true; prop.threshold=2.2
 		"crate": size=Vector3(1.04,1.04,1.04); y=.52; prop.mass=5.0; prop.value=1100; prop.threshold=1.9
 		"cart": size=Vector3(1.35,1.0,1.10); y=.46; prop.mass=7.0; prop.value=1400; prop.threshold=1.7
-		"taxi": size=Vector3(1.85,1.45,3.3); y=.76; prop.mass=40.0; prop.value=9000; prop.threshold=1.8
+		"taxi": size=Vector3(1.85,1.45,3.3); y=.76; prop.mass=180.0; prop.value=9000; prop.threshold=2.0
 		"cone": size=Vector3(.6,.85,.6); y=.43; prop.mass=1.4; prop.value=250; prop.threshold=1.1
 		_: size=Vector3(1.66,1.0,.65); y=.55; prop.mass=4.0; prop.value=550; prop.threshold=1.5
 	prop.nominal_radius = maxf(size.x,size.z)*.5
@@ -189,11 +202,63 @@ func spawn(kind: String, x: float, z: float, stack: float = 0) -> CrashProp:
 	prop.add_child(collider)
 	var model: Node3D = PROP_SCENES[kind].instantiate()
 	prop.add_child(model); prop.visual=model
-	root.add_child(prop)
 	prop.position=Vector3(x,WreckRules.surface_y(level,z)+y+stack+.03,z)
+	root.add_child(prop)
 	prop.wrecked.connect(game.prop_wrecked)
 	props.append(prop)
 	return prop
+
+func populate_traffic() -> void:
+	var length: float = level.steps * level.run
+	# Finite launch-relative fleet. Waiting in READY never advances these encounters.
+	# Civic: passing lanes and a staggered rank. Market: an authored turning lane.
+	# Port: a diagonal approach and narrow terminal gate. All retain physical momentum.
+	var specs: Array = [
+		[{"x":-19.0,"z":3.7,"speed":5.5,"dir":1},{"x":-20.0,"z":7.0,"speed":6.0,"dir":1},{"x":4.0,"z":9.0,"speed":0.0,"dir":1}],
+		[{"x":-18.0,"z":3.7,"speed":4.2,"dir":1},{"x":-27.0,"z":7.0,"speed":7.0,"dir":1},{"x":1.5,"z":10.0,"speed":0.0,"dir":1,"yaw":.35}],
+		[{"x":-25.0,"z":2.5,"speed":5.8,"dir":1},{"x":-27.0,"z":7.0,"speed":6.5,"dir":1},{"x":3.0,"z":10.0,"speed":0.0,"dir":1,"yaw":PI*.25}]
+	][index]
+	for spec in specs:
+		var car := TrafficCar.new()
+		car.game=game; car.kind="taxi"; car.value=9000; car.mass=180.0; car.nominal_radius=1.65
+		car.name="traffic_%d_%d" % [index,traffic.size()]
+		car.stable_id=car.name; car.set_meta("traffic",true); car.set_meta("slot",props.size())
+		car.paint_color=[Color("ffc54e"),Color("84efbc"),Color("eff4d4")][traffic.size()]
+		car.route_direction=Vector3.RIGHT*float(spec.dir)
+		car.cruise_speed=float(spec.speed); car.queued=car.cruise_speed==0.0
+		car.position=Vector3(float(spec.x),.755,length+float(spec.z))
+		car.rotation.y=PI*.5*float(spec.dir); car.freeze=true
+		if spec.has("yaw"):
+			car.rotation.y=float(spec.yaw)
+			car.route_direction=Vector3(sin(car.rotation.y),0,cos(car.rotation.y))
+		if traffic.is_empty() and index==1:
+			car.route_points.assign([Vector3(-6,.755,length+3.7),Vector3(1,.755,length+2.5),Vector3(34,.755,length+2.5)])
+		elif traffic.is_empty() and index==2:
+			car.route_points.assign([Vector3(-8,.755,length+3.7),Vector3(34,.755,length+3.7)])
+		var collider:=CollisionShape3D.new(); var shape:=BoxShape3D.new(); shape.size=Vector3(1.85,1.45,3.3); collider.shape=shape
+		car.add_child(collider)
+		car.visual=PROP_SCENES.taxi.instantiate(); car.add_child(car.visual)
+		root.add_child(car); car.wrecked.connect(game.prop_wrecked)
+		traffic.append(car); props.append(car)
+	if index==1:
+		label_3d("TURNING TAXIS",Vector3(-2,.035,length+1.7),.18,level.color,Vector3(-PI/2,0,0))
+	elif index==2:
+		for z in [length+2.0,length+5.4]:
+			static_box("Terminal traffic gate",Vector3(8,1.0,z),Vector3(.35,2.0,.35),"yellow")
+		label_3d("TERMINAL MERGE",Vector3(-9,.035,length+1.5),.18,level.color,Vector3(-PI/2,0,0))
+
+func start_traffic() -> void:
+	for car in traffic: car.start_driver(traffic)
+
+func traffic_has_motion() -> bool:
+	for car in traffic:
+		if car.has_causal_motion(): return true
+	return false
+
+func traffic_pending_contact(horizon: float = 1.5) -> bool:
+	for car in traffic:
+		if car.imminent_contact(horizon): return true
+	return false
 
 func civic_scenery(h: float, length: float) -> void:
 	for side in [-1,1]:

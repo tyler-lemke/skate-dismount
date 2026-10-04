@@ -35,7 +35,7 @@ func run() -> void:
 		check(game.phase==game.Phase.RUN and game.run_speed>14,"release starts a fast run")
 		var before_speed:float=game.run_speed
 		await frames(30)
-		check(game.run_speed>before_speed,"speed builds on approach")
+		check(game.run_speed<before_speed,"coasting on the approach has mild rolling drag")
 		game.toggle_pause();var paused_z:float=game.skater.position.z;await frames(25)
 		check(is_equal_approx(paused_z,game.skater.position.z),"pause freezes simulation")
 		game.toggle_pause()
@@ -51,13 +51,12 @@ func run() -> void:
 		check(is_equal_approx(Engine.time_scale,1),"pause restores unscaled interface clock")
 		game.toggle_pause()
 		check((is_equal_approx(Engine.time_scale,.55) or is_equal_approx(Engine.time_scale,.18)) and not game.slow_motion,"resume restores crash pacing without sticky Tab")
-		for boost in range(3):
-			while game.boost_cooldown>0 and game.phase==game.Phase.CRASH: await frames(1)
-			key(KEY_SHIFT,true)
+		check(game.boosts==1,"one crashbreaker is available at bail")
+		key(KEY_SHIFT,true)
 		await frames(5)
 		var velocity:Vector3=game.skater.torso.linear_velocity
 		key(KEY_SHIFT,true)
-		check(game.boosts==0 and game.skater.torso.linear_velocity==velocity,"three crashbreakers; exhausted boost has no effect")
+		check(game.boosts==0 and game.skater.torso.linear_velocity==velocity,"single crashbreaker exhausted; repeated input has no effect")
 		budget=0
 		while game.phase!=game.Phase.RESULTS and budget<3000:
 			await frames(1);budget+=1

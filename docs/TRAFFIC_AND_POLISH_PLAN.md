@@ -2,7 +2,7 @@
 
 The next version should have two connected acts: a readable skateboard stair tumble, followed by a player-caused traffic pile-up. **One crashbreaker is the player's one deliberate intervention between those acts.** Higher-quality character and vehicle art, an open camera composition, and a much quieter HUD make that decision understandable.
 
-This is the implementation blueprint, not a new game release. It synthesizes independent proposals and adversarial cross-review by the existing three design agents. Claude, AGY and Grok did not participate in this pass; their earlier access failures remain documented separately. Source findings are verified; tuning and player acceptance targets below are hypotheses. The existing 2.0 app remains the playable baseline.
+This blueprint was prepared against version 2.0. The implemented 3.0 release and remaining native-validation limits are recorded in [VALIDATION.md](VALIDATION.md). It synthesizes independent proposals and adversarial cross-review by the existing three design agents. Claude, AGY and Grok did not participate in this pass; their earlier access failures remain documented separately. Source findings are verified; tuning and player acceptance targets below are hypotheses. The former 2.0 source baseline is archived in `builds/baseline-2.0-source.zip`.
 
 ## Decisions
 
@@ -65,7 +65,7 @@ Produce editable Blender sources and GLB exports through Blender MCP, with contr
 
 ## UI and camera: fewer competing panels
 
-The [current crash preview](screenshots/level_1_crash_validation.png) shows a large eleven-row injury file, receipt panel, payout, fund, aim, speed, phase and resource cards at once. It is a Blender reconstruction, so its fonts/lighting are not a native screenshot, but the source layout confirms the composition problem.
+The 2.0 source layout crowded live play with eleven injury rows and separate payout, fund, aim, speed and resource cards. The [updated crash preview](screenshots/level_1_crash_validation.png) shows the implemented compact injury display and single resource card; it remains a Blender reconstruction, with substituted fonts and lighting.
 
 The [layout concept](concepts/crash_hud_concept.svg) explores a protected central action window. Final live HUD: one large insurance payout; a compact eleven-region body silhouette with the latest/severest hit; one conspicuous `CRASHBREAKER READY → SPENT` token; a small speed readout; one brief edge receipt such as `TAXI A → TAXI B +$…`. The concept is diagrammatic and does not establish final character/model quality. Fund progress and Mom's message get emphasis in setup and settlement. Full injury/item ledgers live in the results; the live scene keeps localized limb feedback visible.
 

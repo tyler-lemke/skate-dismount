@@ -136,21 +136,17 @@ func boost_checks() -> void:
 		check(direction.is_finite() and direction.x*side > .5,"keyboard aim points toward selected side")
 		var before: Vector3 = game.skater.torso.linear_velocity
 		key(KEY_SHIFT,true)
-		check(game.boosts == 2 and game.boost_cooldown > 0,"first aimed boost consumes one finite charge")
+		check(game.boosts == 0 and game.breaker_events.size()==1,"first aimed boost consumes the single charge")
 		key(KEY_SHIFT,true)
-		check(game.boosts == 2,"cooldown prevents same-frame boost spam")
+		check(game.boosts == 0 and game.breaker_events.size()==1,"spent resource prevents same-frame boost spam")
 		await frames(2)
 		var after: Vector3 = game.skater.torso.linear_velocity
 		changes.append(after.x-before.x)
 		check(after.is_finite() and (after.x-before.x)*side > 2.0,"aim materially changes physical torso velocity toward target side")
 		held_key(KEY_A if side < 0 else KEY_D,false)
-		var elapsed: float = game.crash_real_clock
-		while game.boost_cooldown > 0 and game.phase == game.Phase.CRASH: await frames(1)
-		check(game.crash_real_clock-elapsed >= 1.2,"boost lockout lasts approximately 1.4 frame-clock seconds")
+		await frames(120)
 		key(KEY_SHIFT,true)
-		while game.boost_cooldown > 0 and game.phase == game.Phase.CRASH: await frames(1)
-		key(KEY_SHIFT,true)
-		check(game.boosts == 0,"three timed boosts exhaust the charge budget")
+		check(game.boosts == 0 and game.breaker_events.size()==1,"time and subsequent collisions cannot refill a spent crashbreaker")
 		await frames(1)
 		var exhausted: Vector3 = game.skater.torso.linear_velocity
 		key(KEY_SHIFT,true)

@@ -1,79 +1,82 @@
-# Validation record — 2.0
+# Validation record — 3.0
 
-The game was checked with **Godot 4.7.2 on macOS**. Original assets and fallback previews use Blender 5.2.2 through Blender MCP's background executor. The results below establish physical behavior, accounting, input routing, and interface constraints. They do **not** establish that people find the game fun.
+The updated three-level game was checked with **Godot 4.7.2 on macOS**. Models and validation previews were generated through **Blender MCP in background mode**, using Blender 5.2.2 and CPU rendering. The universal macOS app includes the engine, so Godot and Blender are not required to play.
 
-## Automated verification
+## Completed behavior and automated checks
 
-The latest completed checks passed **1,426 assertions across eight suites**, with zero failures: the 1,298-assertion full-suite run followed by the final expanded interface suite, which passed 627 assertions in place of its earlier 499. Assertions include repeated checks across routes, limbs, controls, and interface elements, so this total is not a count of independent scenarios. Run the source checks with `./tools/test.sh`.
+**1,780 assertions across 13 suites passed, with zero failures.** [TEST_RESULTS.json](TEST_RESULTS.json) records the final suite counts. The total includes repeated checks across routes, limbs, input states and UI elements; it is not a count of independent scenarios. Run `GODOT_BIN=/opt/homebrew/bin/godot ./tools/test.sh` to reproduce locally.
 
-| Suite | Assertions | Evidence covered |
+| Suite | Assertions | Main evidence |
 | --- | ---: | --- |
-| Rules | 170 | Injury severity and capped payouts, valid body regions, unique property scoring, combo/medal boundaries, staircase geometry, money formatting |
-| Physical injuries | 36 | Real flat and rotated floor drops with verified collider sources, no skateboard injury, no resting-contact payout, connected poses, local damage appearance and complete replay restoration |
-| Input and persistence | 36 | Actual `Input.parse_input_event` dispatch through GUI focus, pose/launch controls, hat selection, fresh-instance persistence, version-one record migration |
-| Gameplay | 82 | Three complete routes, launch and collisions, eleven-part ragdoll plus separate board, ten joints, finite boosts, pause/slow motion, replay, balanced claims and saved records |
-| Route variations | 41 | Nine physical runs, lane-dependent outcomes, manual bail and retry |
-| Playability proxies | 390 | Successive actual-tread impacts, event sequences and payout variation, pose-dependent injuries, directional boosts and cooldown, replay/banking invariants, attainable campaign funding |
-| Interface | 627 | Godot font metrics, wrapped text and long receipt bounds, actual mouse dispatch through modal overlays, completed payout count-up, results/replay controls, nonoverlapping severity bars, all eleven anatomy regions and replay restoration |
-| Audio resources | 44 | Eleven imported streams contain sample data and valid durations; music/rolling loops and one-shot settings |
+| Rules | 170 | Finite anatomical payouts, valid regions, unique property awards, combo/medal boundaries and geometry |
+| Physical injuries | 36 | Real floor impacts, collider sources, resting-contact rejection, poses and localized damage |
+| Input and persistence | 36 | Actual input dispatch, focused controls, hats, saved preferences and legacy migration |
+| Gameplay | 85 | Three completed routes, connected ragdoll, pause/slow motion, single breaker and replay accounting |
+| Route variations | 41 | Nine physical lane runs, chains, manual bail and retry |
+| Playability proxies | 370 | Actual-tread injuries, different lane/pose outcomes, bounded pacing and attainable funding |
+| Interface | 586 | Font metrics, wrapped hints, modal input, one payout, eleven-region anatomy and causal receipts |
+| Audio resources | 77 | Fifteen streams, finite nonclipping traffic PCM, loop seams and headless pause policy |
+| Skating | 12 | Actual W/A/D dispatch, kick speed gain, coast drag, planted feet, forward carving and outside line |
+| Crashbreaker | 44 | One accepted Shift event, repeat/invalid-state rejection, impulse budget, cone/radius/occlusion and time-scale invariance |
+| Rider skin | 210 | Connected weighted body, clean arm/hip mapping, all three bail transitions, eleven damage channels, replay and car morph/pivots |
+| Traffic | 93 | Safe autonomous baselines, braking, real three-car chains, negative control, callback ordering and input-driven interception on all routes |
+| Camera | 20 | Real collider occlusion, rider-layer exclusion, clear-view preservation and bounded alternatives |
 
-The runner rejects script errors, failed assertions, and reported resource leaks. Tests use isolated save files. Headless audio playback is disabled; resource checks do not assess how the game sounds.
+The runner rejects script errors, failed assertions and reported resource leaks. Tests use isolated save paths. The sandboxed engine emits a macOS certificate-store diagnostic; there were no script failures in the completed runs. Headless audio allocates no playback players, so resource checks cannot establish how the mix sounds. Tree pause suspends rolling and engine loops through their existing players while music remains available.
 
-Version-one arcade records are retained as legacy scores while the new treatment fund starts at zero. Version-two campaign claims, legacy scores, selected hat, and sound preference round-trip independently. Replaying or filing a weaker result does not add treatment money again.
+## Physical traffic and the one-use contract
 
-## Measured crash behavior
+Each route has three preallocated cars: two drivers and one queued car. Launch starts their encounter. Drivers use bounded motor/braking, lane and heading forces; substantial collisions remove driver authority from the same rigid body. Passive skid friction then preserves existing collision momentum. There is no respawn, scripted secondary launch or direct crashbreaker payment. Autonomous driving, lineage, damage and payment are separate states.
 
-[PLAYABILITY_METRICS.json](PLAYABILITY_METRICS.json) is an exact copy of `builds/playability_report.json` from the completed full-suite run, including the revised trajectory and actual-tread contact measurements. These are observed runs, not promises of identical physics scores on every machine.
+The single crashbreaker relaunches the rider at the existing 8.5 impulse-per-mass scale. Nearby shoves have a 2.2-unit radius, a 35-degree horizontal half-cone, ray obstruction checks, quadratic distance falloff, a 60-per-object cap, a 4-unit/s mass-normalized cap and a total 90 impulse budget. It cannot directly ignite a drum. Consumption occurs once before impulses; held/repeated Shift, pause, help and replay cannot obtain another use.
 
-| Route | Left / center / right claim | Payout spread¹ | Distinct opening property sequences |
+[TRAFFIC_METRICS.json](TRAFFIC_METRICS.json) is an exact copy of the final physical traffic report. A fixture establishes A → B → C, with B and C outside the pulse. Moving B away leaves C healthy and unpaid. Simultaneous-contact fixtures exercise both insertion orders using only measured collider contacts retained for a bounded solver window. Three 1,800-frame autonomous baselines produce no uncontrolled wrecks or claims; headway cases at 4, 6 and 8 units/s brake safely.
+
+The complete-game regression dispatches A to select the outside-left line, holds/releases Space for approximately 75% charge, dispatches Space near the last two steps and dispatches Shift after 0.5 simulated crash seconds. It verifies actual A → B → C contacts, all three cars damaged, one ledger award per car, C's cause equal to B, and finite settlement.
+
+| Route | Observed payout | B → C strength | Layout |
+| --- | ---: | ---: | --- |
+| Civic Cascade | $46,895 | 2.43 | Staggered passing lanes |
+| Night Market | $40,536 | 2.43 | Turning pickup lane and angled queued cab |
+| Port Authority | $56,646 | 2.92 | Diagonal merge and terminal gate |
+
+The unchanged damage threshold is 2.0. Civic and Port also yielded the paid chain at 0.2 and 0.8 seconds; Market's useful window is narrower. These are observed fixed-step runs, not promises of identical scores or timing across machines. Gold, mint and cream paint distinguish the cars; glass and wheels retain their materials. Damage uses one authored front dent, rather than directional metal simulation.
+
+## Agency, staircase impacts and campaign
+
+[PLAYABILITY_METRICS.json](PLAYABILITY_METRICS.json) contains the final unassisted lane/pose runs. These are objective behavior proxies, **not proof of human enjoyment**.
+
+| Route | Left / center / right payout | Payout spread | Distinct opening sequences |
 | --- | --- | ---: | ---: |
-| Civic Cascade | $222,262 / $140,669 / $263,010 | 46.5% | 3 |
-| Night Market | $60,321 / $260,073 / $101,200 | 76.8% | 3 |
-| Port Authority | $231,541 / $338,108 / $446,572 | 48.2% | 3 |
+| Civic Cascade | $222,337 / $98,710 / $43,185 | 80.6% | 3 |
+| Night Market | $32,928 / $205,481 / $29,891 | 85.5% | 3 |
+| Port Authority | $306,244 / $181,370 / $134,684 | 56.0% | 3 |
 
-¹ Spread is `(highest − lowest) / highest` across the three tested starting lanes. Opening sequences compare the first five property events, or all available events when fewer than five occur. Injury-inclusive opening sequences also differ for all three lanes on each route.
+Spread is `(highest − lowest) / highest`. All nine lanes wreck at least three objects; Civic's right taxi line now has a physical domino bridge and wrecks ten. The best three unassisted claims total **$734,062**, exceeding the **$600,000 treatment goal**. Improved retries bank only the increase; replay and weaker claims add nothing. Existing version-two funds/preferences remain compatible, and version-one arcade records remain separately retained.
 
-The best claim from each route totals **$969,655 without crashbreaker assistance**, exceeding the **$600,000 treatment goal**. This establishes an attainable tested path, not that new players will discover it. Civic now starts in the left domino lane so the default first launch demonstrates a sustained chain; its sparse center lane remains available for experimentation.
-
-The revised bail carries 72% of forward riding speed with an initial net vertical velocity of −1.7 m/s, bringing the body down onto the stairs while the first struck prop retains its full-speed launch impulse. At 75% charge in the recommended Civic left lane, TUCK produced **11 injury contacts across nine anatomical regions on three actual treads**, spanning **0.587 simulation seconds**, and still wrecked **34 properties**. Contact sources identify `Tread_09`, `Tread_10`, and `Tread_11`; this evidence distinguishes a successive stair tumble from hitting props merely located above the staircase. All nine measured lanes produced actual-tread injuries across six to eleven regions.
-
-On the same Civic center line, TUCK, STARFISH, and TORPEDO produced different injury distributions. TUCK versus STARFISH differed by approximately **191.17 summed absolute severity points across eleven regions**. Aimed boosts changed lateral velocity by approximately **−7.16 m/s** and **+7.16 m/s**. Real floor-drop tests produced injury from incoming contact and no additional payment after settling. Across the tested poses, the maximum distance between joined body centers was **0.716 units**; this is a connected-body stability measure, not a measurement of joint-anchor error.
-
-The nine lane runs lasted approximately **14.8–29.5 frame-clock seconds** after bail. This clock is derived from fixed-step headless execution and time-scale handling; it is **not a wall-clock performance benchmark or an FPS measurement**. The game also has a 34-second presentation-time crash limit and a manual claim-filing action. Native pacing and responsiveness still require observation during play.
+The Civic left-line reference records 15 actual-tread injury impacts across eight regions over 1.026 simulated seconds, with zero breaker uses. Named tread colliders establish a staircase tumble rather than damage from nearby props alone. Pose changes produce different injury distributions; opposite aimed relaunches change lateral velocity by approximately −7.10 and +7.07 units/s. Settlement considers causally moving bodies and pending fuses/contacts, bounded by 16 simulated or 34 presentation seconds, with Enter available to file early. Frame-clock measurements are not rendered FPS benchmarks.
 
 ## Visual evidence and limits
 
-A native WindowServer was unavailable in this session. There was no human playtest, native mouse playthrough, GPU-renderer inspection, audio audition, or rendered-FPS measurement. Automated input dispatch verifies application routing, including focused controls, but is not a substitute for those checks.
+A native desktop display was unavailable. There was no human playtest, native GPU-renderer inspection, audio audition or rendered-FPS measurement. Automated input routing and physical outcomes do not establish those qualities.
 
-Fallback previews export actual instantiated Godot geometry, camera transforms, per-object damage state, and UI bounds/visibility into Blender CPU renders. Static MultiMesh transforms are retained for this exporter because the dummy headless renderer cannot return GPU instance transforms. Blender substitutes its font, lighting, and color processing. These artifacts are **validation previews, not native Godot screenshots**.
+Six final gameplay previews were regenerated and visually inspected. They export actual Godot geometry, CPU-evaluated skin poses and morphs, camera transforms, damage state and Control bounds into Blender. Shader injury colors are approximated at vertices; Blender substitutes lighting, fonts and color processing. The watermark identifies this method. These are **validation reconstructions, not native Godot screenshots**.
 
-Six final previews were regenerated through Blender MCP and visually inspected. They cover the menus, unobstructed rider setup, localized injury feedback, balanced settled payouts, and the funded-treatment ending. Results captures wait for the payout count-up to finish. The Civic crash capture uses the measured 75%-charge, unassisted TUCK launch and displays receipts identifying actual stair impacts.
-
-| Route | Inspected previews |
+| Evidence | Preview |
 | --- | --- |
-| Civic Cascade | [Menu](screenshots/level_1_menu_validation.png), [stair impact](screenshots/level_1_crash_validation.png), [settled claim](screenshots/level_1_results_validation.png) |
-| Night Market | [Pose and hat setup](screenshots/level_2_ready_validation.png) |
-| Port Authority | [Menu](screenshots/level_3_menu_validation.png), [treatment funded](screenshots/level_3_results_validation.png) |
+| Route selection and treatment story | [Civic menu](screenshots/level_1_menu_validation.png) |
+| New character and setup controls | [Night Market setup](screenshots/level_2_ready_validation.png) |
+| Compact live anatomy and stair impacts | [Civic crash](screenshots/level_1_crash_validation.png) |
+| Three-car damage and causal receipt | [Civic traffic](screenshots/level_1_traffic_validation.png) |
+| Third-route environment/setup | [Port setup](screenshots/level_3_ready_validation.png) |
+| Earned campaign ending and single payout | [Treatment funded](screenshots/level_3_results_validation.png) |
 
-The source contains 18 original model exports, including three wearable hats, and eleven generated audio streams. The editable Blender studio and asset/audio generators remain available for iteration.
+The funded capture completes all three earlier/current runs and waits for payout reveal; it does not invent a funded save. A [close character preview](screenshots/hero_asset_validation.png) is a Blender studio render using actual Godot pose transforms. Camera occlusion checks improve blocked views but do not guarantee every limb stays visible behind cargo. UI metric checks cover the 1440×900 design canvas; native scaling at other display sizes remains unverified.
 
-## Packaged application and review scope
+The source includes 19 original GLB exports, 15 original synthesized audio streams and editable Blender studios. See [ASSET_PIPELINE.md](ASSET_PIPELINE.md) for regeneration and runtime contracts. Internal adversarial review found and corrected contact-order, sound-pause, wrapped-hint and skin-topology defects. Claude, AGY and Grok did not provide completed external reviews; no such validation is claimed.
 
-The 2.0 release targets a universal Intel / Apple Silicon `builds/StairWreck.app` and `builds/StairWreck-macOS.zip`. Packaging uses the full installed Godot runtime with the game PCK and licensing notices, so it is larger than a dedicated release-template export. The package verifier runs the **bundled executable and PCK**, completes all three autoplay routes, and checks the sealed ad-hoc signature with `codesign --verify --deep --strict`:
+## Packaged release
 
-```sh
-./tools/build_macos.sh
-./tools/check_package.sh
-```
+The **3.0** Intel / Apple Silicon application is `builds/StairWreck.app`, with the downloadable `builds/StairWreck-macOS.zip`. Packaging uses the full installed official Godot runtime and a game PCK, so the archive is larger than a release-template build.
 
-The final **2.0** app and archive were rebuilt after the modal-input and results-label fixes. All three routes completed through the bundled executable and PCK. An isolated PCK probe loaded and instantiated all 18 models, including all three hats. Strict deep signature verification, plist validation, ZIP CRC checks, and SHA comparisons of every archived app file against the signed app passed. The executable contains both Intel and Apple Silicon architectures.
-
-| Packaged autoplay route | Payout | Wrecks | Explosions | Recorded replay frames |
-| --- | ---: | ---: | ---: | ---: |
-| Civic Cascade | $317,220 | 35 | 6 | 188 |
-| Night Market | $422,095 | 35 | 8 | 203 |
-| Port Authority | $738,839 | 60 | 16 | 224 |
-
-Packaged autoplay uses a full-power, assisted control sequence, so these payouts differ from the unassisted lane experiments above. The final archive is **170,136,248 bytes**. Its SHA-256 is `8457dc5a834bf3cd3d5464c63c52766e51b3f045c7469b75680bb16c6fa3b43b`. [PACKAGE_CHECK.txt](PACKAGE_CHECK.txt) records the checks, component sizes, and PCK hash.
-
-Design review combined independently developed internal proposals and adversarial source review. Additional external-model review attempts did not yield completed reviews: Claude API access failed at DNS resolution, the Antigravity local service failed on filesystem/bind access, and Grok lacked project filesystem access. No independent external-model validation is claimed.
+`./tools/check_package.sh` runs the bundled executable/PCK from an empty project directory, completes all three routes, loads all 19 models and 15 audio resources, checks representative build/source exclusions, and verifies the ad-hoc signature. ZIP CRC, every archived app file, plist version and both executable architectures were checked separately. [PACKAGE_CHECK.txt](PACKAGE_CHECK.txt) records final payouts, sizes and SHA-256 hashes. These checks establish packaged execution and integrity, not native performance or enjoyment.

@@ -19,6 +19,8 @@ var visual_broken: bool = false
 var damaged_material: StandardMaterial3D
 var fuse_material: StandardMaterial3D
 var fuse_clock: float = 0.0
+var stable_id: String = ""
+var cause_label: String = ""
 
 func _ready() -> void:
 	origin = global_position
@@ -65,17 +67,31 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		var impulse: float = state.get_contact_impulse(i).length() / maxf(mass, 1.0)
 		hit_strength = maxf(relative, impulse)
 		if hit_strength > 0.7:
+			if not armed: origin = global_position
 			armed = true
+			if cause_label.is_empty():
+				cause_label = other.cause_label if other is CrashProp and not other.cause_label.is_empty() else (other.name.to_upper() if other is CrashProp else "RIDER")
 			if explosive: call_deferred("ignite")
 		if hit_strength >= threshold:
 			if not explosive: call_deferred("shatter")
 			break
 
 func activate(impulse: Vector3) -> void:
+	if not armed: origin = global_position
 	armed = true
+	if cause_label.is_empty(): cause_label = "RIDER"
 	sleeping = false
 	apply_central_impulse(impulse)
 	if explosive: ignite()
+
+func apply_shove(impulse: Vector3, source: String = "CRASHBREAKER") -> void:
+	# Movement establishes lineage, but a pulse never directly ignites or pays.
+	if not impulse.is_finite() or impulse.length_squared() < .0001: return
+	if not armed: origin = global_position
+	armed = true
+	if cause_label.is_empty(): cause_label = source
+	sleeping = false
+	apply_central_impulse(impulse)
 
 func ignite() -> void:
 	if broken or fuse>=0 or not armed: return
@@ -94,6 +110,13 @@ func shatter() -> void:
 func set_damaged_visual(damaged: bool) -> void:
 	if visual_broken==damaged or not visual: return
 	visual_broken=damaged
+	if kind=="taxi":
+		var body: MeshInstance3D=visual.get_node_or_null("Body")
+		if body and body.mesh is ArrayMesh:
+			for shape in body.mesh.get_blend_shape_count():
+				if body.mesh.get_blend_shape_name(shape)=="Crumple":
+					body.set_blend_shape_value(shape,.85 if damaged else 0.0)
+					return
 	if damaged and damaged_material==null:
 		damaged_material=StandardMaterial3D.new()
 		damaged_material.albedo_color=Color("c56746") if explosive else Color("657c7c")

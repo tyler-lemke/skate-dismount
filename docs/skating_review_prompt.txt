@@ -88,3 +88,362 @@ Evaluate the actual proposal, including dependencies and a credible minimal slic
 Pick exactly five IDs as a coherent package, considering overlapping ideas and prerequisite work. Include a build order and a minimal first-playable milestone. Identify ideas that sound impressive but would harm this game or consume time before testing the basics. Do not reward complexity or just prettier screenshots.
 
 No feature is implemented by this document. No new human playtest evidence is available.
+
+SOURCE EXCERPT scripts/rider.gd:
+```
+1: class_name Skater
+2: extends Node3D
+3: 
+4: const MODELS: Dictionary = {
+5: 	"torso": preload("res://assets/models/rider_torso.glb"),
+6: 	"pelvis": preload("res://assets/models/rider_pelvis.glb"),
+7: 	"head": preload("res://assets/models/rider_head.glb"),
+8: 	"upper_arm": preload("res://assets/models/rider_upper_arm.glb"),
+9: 	"forearm": preload("res://assets/models/rider_forearm.glb"),
+10: 	"thigh": preload("res://assets/models/rider_thigh.glb"),
+11: 	"shin": preload("res://assets/models/rider_shin.glb"),
+12: 	"board": preload("res://assets/models/skateboard.glb")
+13: }
+14: const HAT_PATHS: Array[String] = ["res://assets/models/hat_clockwork.glb", "res://assets/models/hat_crane.glb", "res://assets/models/hat_cone.glb"]
+15: var visuals: Dictionary = {}
+16: var limbs: Array[RagdollLimb] = []
+17: var joints: Array[Joint3D] = []
+18: var ragdoll: bool = false
+19: var torso: RagdollLimb
+20: var game: Node
+21: var pose: float = 0.0
+22: var pose_index: int = 0
+23: var hat_index: int = 0
+24: var body_parts: Dictionary = {}
+25: var damage_states: Dictionary = {}
+26: var damage_materials: Dictionary = {}
+27: var damage_patches: Dictionary = {}
+28: var pose_anchors: Dictionary = {}
+29: var offsets: Dictionary = {
+30: 	"torso": Vector3(0, 1.35, 0), "pelvis": Vector3(0, 0.90, 0), "head": Vector3(0, 1.99, 0.0),
+31: 	"arm_l": Vector3(-0.44,1.34,0), "arm_r": Vector3(0.44,1.34,0),
+32: 	"fore_l": Vector3(-0.52,1.01,0.08), "fore_r": Vector3(0.52,1.01,0.08),
+33: 	"thigh_l": Vector3(-0.18,0.61,-0.10), "thigh_r": Vector3(0.18,0.61,0.13),
+34: 	"shin_l": Vector3(-0.18,0.23,-0.10), "shin_r": Vector3(0.18,0.23,0.13),
+35: 	"board": Vector3(0,0.04,0)
+36: }
+37: 
+38: func _ready() -> void:
+39: 	for key in offsets:
+40: 		var model: Node3D = MODELS[model_key(key)].instantiate()
+41: 		add_child(model)
+42: 		model.position = offsets[key]
+43: 		visuals[key] = model
+44: 	pose_ride(0.0, 0.0)
+45: 	set_hat(hat_index)
+46: 
+47: func attach_hat(head_model: Node3D) -> void:
+48: 	var previous: Node = head_model.get_node_or_null("CrashHat")
+49: 	if is_instance_valid(previous):
+50: 		head_model.remove_child(previous)
+51: 		previous.queue_free()
+52: 	var path: String = HAT_PATHS[hat_index]
+53: 	if not ResourceLoader.exists(path): return
+54: 	var scene: PackedScene = load(path)
+55: 	if scene == null: return
+56: 	var accessory: Node3D = scene.instantiate()
+57: 	accessory.name = "CrashHat"
+58: 	accessory.position = Vector3(0, .34, 0)
+59: 	head_model.add_child(accessory)
+60: 
+61: func set_hat(index: int) -> void:
+62: 	hat_index = clampi(index, 0, HAT_PATHS.size() - 1)
+63: 	if visuals.has("head"): attach_hat(visuals.head)
+64: 	if body_parts.has("head"):
+65: 		var head: Node3D = body_parts.head
+66: 		var head_model: Node3D = head.get_node_or_null("RiderModel")
+67: 		if head_model != null: attach_hat(head_model)
+68: 
+69: func model_key(key: String) -> String:
+70: 	if key.begins_with("arm_"): return "upper_arm"
+71: 	if key.begins_with("fore_"): return "forearm"
+72: 	if key.begins_with("thigh_"): return "thigh"
+73: 	if key.begins_with("shin_"): return "shin"
+74: 	return key
+75: 
+76: func pose_ride(time: float, steer: float) -> void:
+77: 	if ragdoll: return
+78: 	var bob: float = sin(time * 10.0) * 0.025
+79: 	for key in visuals:
+80: 		visuals[key].position = offsets[key]
+81: 		visuals[key].rotation = Vector3.ZERO
+82: 	visuals.torso.position.y -= 0.12 + bob
+83: 	visuals.torso.rotation.x = 0.18
+84: 	visuals.torso.rotation.z = -steer * 0.13
+85: 	visuals.head.position.y -= 0.12 + bob
+86: 	visuals.pelvis.position.y -= 0.08
+87: 	visuals.arm_l.rotation.z = -0.42 - steer * 0.2
+88: 	visuals.arm_r.rotation.z = 0.42 - steer * 0.2
+89: 	visuals.fore_l.rotation.x = -0.70
+90: 	visuals.fore_r.rotation.x = -0.70
+91: 	visuals.thigh_l.rotation.x = -0.32
+92: 	visuals.thigh_r.rotation.x = -0.32
+93: 	visuals.shin_l.rotation.x = 0.25
+94: 	visuals.shin_r.rotation.x = 0.25
+95: 	visuals.board.rotation.z = -steer * 0.07
+96: 	apply_launch_pose(steer)
+97: 
+98: func set_pose(index: int) -> void:
+99: 	if ragdoll: return
+100: 	pose_index = clampi(index, 0, 2)
+101: 	pose_ride(0.0, 0.0)
+102: 
+103: func place_segment(key: String, start: Vector3, finish: Vector3) -> void:
+104: 	var part: Node3D = visuals[key]
+105: 	part.position = (start + finish) * .5
+106: 	# All anatomical models have their long axis along local Y.
+107: 	var up: Vector3 = (start - finish).normalized()
+108: 	var right: Vector3 = Vector3.FORWARD.cross(up).normalized()
+109: 	if right.length_squared() < .01: right = Vector3.RIGHT
+110: 	part.basis = Basis(right, up, right.cross(up)).orthonormalized()
+111: 
+112: func apply_launch_pose(steer: float) -> void:
+113: 	pose_anchors.clear()
+114: 	var hip := Vector3(0, .91, 0)
+115: 	var shoulder := Vector3(0, 1.55, .08)
+116: 	if pose_index == 0: # TUCK: compact arms and folded knees.
+117: 		hip = Vector3(0, .72, -.08)
+118: 		shoulder = Vector3(0, 1.25, .29)
+119: 	elif pose_index == 2: # TORPEDO: long, forward-leaning silhouette.
+120: 		shoulder = Vector3(0, 1.44, .43)
+121: 	var spine: Vector3 = (shoulder - hip).normalized()
+122: 	place_segment("torso", shoulder, hip + spine * .12)
+123: 	visuals.pelvis.position = hip
+124: 	visuals.pelvis.basis = visuals.torso.basis
+125: 	visuals.head.position = shoulder + spine * .36
+126: 	visuals.head.basis = visuals.torso.basis
+127: 	pose_anchors["waist"] = hip + spine * .10
+128: 	pose_anchors["neck"] = shoulder + spine * .13
+129: 	for side in ["l", "r"]:
+130: 		var sign_x: float = -1.0 if side == "l" else 1.0
+131: 		var arm_start: Vector3 = shoulder + Vector3(sign_x * .34, -.04, 0)
+132: 		var elbow: Vector3
+133: 		var wrist: Vector3
+134: 		var knee: Vector3
+135: 		var ankle: Vector3
+136: 		var leg_start: Vector3 = hip + Vector3(sign_x * .18, -.07, 0)
+137: 		if pose_index == 0:
+138: 			elbow = arm_start + Vector3(sign_x * .08, -.28, .16)
+139: 			wrist = elbow + Vector3(-sign_x * .10, -.21, -.23)
+140: 			knee = leg_start + Vector3(sign_x * .02, -.19, .32)
+141: 			ankle = knee + Vector3(0, -.31, -.20)
+142: 		elif pose_index == 1: # STARFISH: wide arms and separated legs.
+143: 			elbow = arm_start + Vector3(sign_x * .33, .02, 0)
+144: 			wrist = elbow + Vector3(sign_x * .31, .04, .02)
+145: 			knee = leg_start + Vector3(sign_x * .17, -.35, 0)
+146: 			ankle = knee + Vector3(sign_x * .10, -.36, .02)
+147: 		else:
+148: 			elbow = arm_start + Vector3(-sign_x * .13, .18, .25)
+149: 			wrist = elbow + Vector3(-sign_x * .10, .14, .27)
+150: 			knee = leg_start + Vector3(0, -.36, -.10)
+151: 			ankle = knee + Vector3(0, -.35, -.05)
+152: 		place_segment("arm_" + side, arm_start, elbow)
+153: 		place_segment("fore_" + side, elbow, wrist)
+154: 		place_segment("thigh_" + side, leg_start, knee)
+155: 		place_segment("shin_" + side, knee, ankle)
+156: 		pose_anchors["shoulder_" + side] = arm_start
+157: 		pose_anchors["elbow_" + side] = elbow
+158: 		pose_anchors["hip_" + side] = leg_start
+159: 		pose_anchors["knee_" + side] = knee
+160: 	visuals.board.rotation.z = -steer * .07
+161: 
+162: func bail(velocity: Vector3, lift: float = 3.5) -> void:
+163: 	if ragdoll: return
+164: 	ragdoll = true
+165: 	var parent: Node = get_parent()
+166: 	var body_map: Dictionary = {}
+167: 	for key in offsets:
+168: 		var limb := RagdollLimb.new()
+169: 		limb.name = key
+170: 		limb.limb_name = key
+171: 		limb.game = game
+172: 		limb.mass = 11.0 if key == "torso" else (6.0 if key == "pelvis" else 2.0)
+173: 		if key == "board": limb.mass = 2.0
+174: 		var shape := CollisionShape3D.new()
+175: 		var box := BoxShape3D.new()
+176: 		match key:
+177: 			"torso": box.size = Vector3(.64,.68,.4)
+178: 			"pelvis": box.size = Vector3(.52,.28,.38)
+179: 			"head": box.size = Vector3(.44,.48,.42)
+180: 			"board": box.size = Vector3(.76,.18,1.65)
+181: 			_: box.size = Vector3(.21,.35,.24)
+182: 		shape.shape = box
+183: 		limb.add_child(shape)
+184: 		var mesh: Node3D = MODELS[model_key(key)].instantiate()
+185: 		mesh.name = "RiderModel"
+186: 		limb.add_child(mesh)
+187: 		parent.add_child(limb)
+188: 		limb.global_transform = visuals[key].global_transform
+189: 		limb.linear_velocity = velocity + Vector3(0, lift, 0)
+190: 		limb.angular_velocity = Vector3([4.2, 1.0, .35][pose_index], 0.0, -velocity.x * 0.18)
+191: 		if key == "board":
+192: 			limb.linear_velocity += Vector3(0,-1,3)
+193: 			limb.angular_velocity = Vector3(4,2,1)
+194: 		limb.previous_linear_velocity = limb.linear_velocity
+195: 		limb.previous_angular_velocity = limb.angular_velocity
+196: 		body_map[key] = limb
+197: 		body_parts[key] = limb
+198: 		if key != "board": prepare_damage_visual(key, limb, mesh)
+199: 		if key == "head": attach_hat(mesh)
+200: 		limbs.append(limb)
+201: 		visuals[key].visible = false
+202: 	torso = body_map.torso
+203: 	join(body_map.torso, body_map.pelvis, to_global(pose_anchors.waist))
+204: 	join(body_map.torso, body_map.head, to_global(pose_anchors.neck))
+205: 	for side in ["l", "r"]:
+206: 		join(body_map.torso,body_map["arm_"+side],to_global(pose_anchors["shoulder_"+side]))
+207: 		join(body_map["arm_"+side],body_map["fore_"+side],to_global(pose_anchors["elbow_"+side]))
+208: 		join(body_map.pelvis,body_map["thigh_"+side],to_global(pose_anchors["hip_"+side]))
+209: 		join(body_map["thigh_"+side],body_map["shin_"+side],to_global(pose_anchors["knee_"+side]))
+210: 	apply_damage_states(damage_states.duplicate())
+```
+
+SOURCE EXCERPT scripts/main.gd:
+```
+195: func _unhandled_input(event: InputEvent) -> void:
+196: 	if not event is InputEventKey or event.echo: return
+197: 	var key: int=event.physical_keycode
+198: 	if key==KEY_ESCAPE and event.pressed:
+199: 		if hud.help_panel.visible: hud.close_help()
+200: 		else: toggle_pause()
+201: 		return
+202: 	if key==KEY_M and event.pressed: toggle_mute(); return
+203: 	if is_paused or hud.help_panel.visible: return
+204: 	if event.pressed:
+205: 		if key==KEY_F and phase==Phase.READY:
+206: 			selected_hat=(selected_hat+1)%3; skater.set_hat(selected_hat); save_records(); hud.toast(["CLOCKWORK CROWN","PAPER CRANE","TRAFFIC CONE"][selected_hat]); return
+207: 		if key in [KEY_1,KEY_2,KEY_3] and phase==Phase.READY: set_pose(key-KEY_1); return
+208: 		if key==KEY_ENTER and phase==Phase.CRASH: finish_run(); return
+209: 		if key==KEY_R and phase!=Phase.MENU: retry(); return
+210: 		if key==KEY_C: camera_style=(camera_style+1)%3; return
+211: 		if key==KEY_H:
+212: 			if phase in [Phase.READY,Phase.RUN,Phase.CRASH,Phase.REPLAY]:
+213: 				paused_for_help=true;toggle_pause();hud.pause_panel.visible=false
+214: 			hud.help_panel.visible=true;return
+215: 		if key==KEY_V and phase==Phase.RESULTS: start_replay(); return
+216: 		if key==KEY_ENTER and phase==Phase.MENU: start_ready(); return
+217: 		if key==KEY_ENTER and phase==Phase.RESULTS: retry(); return
+218: 		if key==KEY_SHIFT and phase==Phase.CRASH: crashbreaker(); return
+219: 	if key==KEY_SPACE:
+220: 		if phase==Phase.READY:
+221: 			if event.pressed: charging=true
+222: 			elif charging: launch()
+223: 		elif phase==Phase.RUN and event.pressed: bail_out()
+224: 	if key==KEY_TAB and phase in [Phase.RUN,Phase.CRASH]:
+225: 		slow_motion=event.pressed; apply_time_rate()
+226: 
+227: func steering() -> float:
+228: 	return float(Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT))-float(Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT))
+229: 
+230: func launch() -> void:
+231: 	if phase!=Phase.READY: return
+232: 	phase=Phase.RUN; charging=false; run_speed=6.5+charge*12.0; run_clock=0; lateral_speed=0; run_serial+=1
+233: 	for prop in world.props:
+234: 		prop.freeze=false; prop.grace=.65; prop.origin=prop.global_position
+235: 	hud.toast("CHASE THE BIGGEST CLAIM",WreckHUD.ORANGE); sound.play("launch")
+236: 
+237: func is_live() -> bool:
+238: 	return phase==Phase.RUN or phase==Phase.CRASH
+239: 
+240: func _physics_process(delta: float) -> void:
+241: 	if is_paused or not is_instance_valid(skater): return
+242: 	if phase==Phase.READY:
+243: 		if charging: charge=minf(1.0,charge+delta*.65)
+244: 		skater.position.x=clampf(skater.position.x+steering()*delta*3.5,-4.5,4.5)
+245: 		skater.pose_ride(run_clock,steering())
+246: 		if automate:
+247: 			charge=minf(1,charge+delta*.9)
+248: 			if charge>=1: launch()
+249: 	elif phase==Phase.RUN:
+250: 		run_clock+=delta
+251: 		rules.tick(delta)
+252: 		var pushing: bool=Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP) or automate
+253: 		run_speed=minf(31.0,run_speed+delta*(5.2 if pushing else 1.5)+(delta*5.0 if skater.position.z>0 else 0.0))
+254: 		lateral_speed=move_toward(lateral_speed,steering()*6.8,delta*14)
+255: 		skater.position.x=clampf(skater.position.x+lateral_speed*delta,-Rules.LEVELS[level_index].width*.5+.8,Rules.LEVELS[level_index].width*.5-.8)
+256: 		skater.position.z+=run_speed*delta
+257: 		var desired_y: float=Rules.surface_y(Rules.LEVELS[level_index],skater.position.z)+.23
+258: 		skater.position.y=move_toward(skater.position.y,desired_y,delta*9)
+259: 		skater.pose_ride(run_clock,steering())
+260: 		rules.peak_speed=maxf(rules.peak_speed,run_speed)
+261: 		for prop in world.props:
+262: 			if not is_instance_valid(prop) or prop.broken: continue
+263: 			var d: Vector3=prop.global_position-skater.global_position
+264: 			if absf(d.x)<prop.nominal_radius+.30 and absf(d.z)<prop.nominal_radius+.3 and d.y>-.4 and d.y<2.6:
+265: 				prop.activate(Vector3(lateral_speed*.7,2.0,run_speed)*prop.mass*1.3)
+266: 				bail_out(); break
+267: 		if phase==Phase.RUN and skater.position.z>Rules.LEVELS[level_index].steps*Rules.LEVELS[level_index].run+5: bail_out()
+268: 	elif phase==Phase.CRASH:
+269: 		crash_clock+=delta; rules.tick(delta)
+270: 		skater.aftertouch(Vector3(steering(),0,0),false,delta)
+271: 		rules.peak_speed=maxf(rules.peak_speed,skater.speed())
+272: 		var movement: float=skater.speed()
+273: 		for prop in world.props:
+274: 			if is_instance_valid(prop) and prop.armed: movement=maxf(movement,prop.linear_velocity.length())
+275: 		idle_clock=idle_clock+delta if movement<1.0 else 0.0
+276: 		if automate and crash_clock>2.2 and boosts>0 and crash_clock>2.2+(3-boosts)*2.8: crashbreaker()
+277: 		if (crash_clock>3 and idle_clock>1.25) or crash_clock>=16.0 or crash_real_clock>=34.0 or skater.focus_position().y < -8.0: finish_run()
+278: 	if is_live():
+279: 		record_clock+=delta
+280: 		if record_clock>=.05: record_clock=0; record_frame()
+281: 
+282: func bail_out() -> void:
+283: 	if phase!=Phase.RUN: return
+284: 	phase=Phase.CRASH; crash_clock=0; idle_clock=0
+285: 	# The board's obstacle strike keeps full approach momentum. The rider falls
+286: 	# into the stair noses instead of sailing above them to the taxi plaza.
+287: 	skater.bail(Vector3(lateral_speed*.9,-2.2,run_speed*.72),.5)
+288: 	apply_time_rate()
+289: 	build_aim_marker()
+290: 	replay_actors.clear()
+291: 	for prop in world.props: replay_actors.append(prop)
+292: 	for body in skater.limbs: replay_actors.append(body)
+293: 	replay_frames.clear()
+294: 	hud.toast(Rules.POSES[pose_index].name+"   /   AIM A D + SHIFT",WreckHUD.ORANGE)
+295: 	sound.play("launch"); camera_shake=.12
+296: 
+297: func crashbreaker() -> void:
+298: 	if phase!=Phase.CRASH or boosts<=0 or boost_cooldown>0: return
+```
+
+SOURCE EXCERPT blender/build_assets.py:
+```
+53: box('Grip tape',(0,0,.066),(.72,1.55,.026),'ink',.07)
+54: box('Deck signature',(0,-.30,.083),(.60,.11,.012),'mint',.01)
+55: for y in (-.53,.53):
+56:     box('Truck hanger',(0,y,-.11),(.64,.15,.12),'steel')
+57:     for x in (-.39,.39): cylinder('Soft urethane wheel',(x,y,-.15),.14,.13,'yellow',(0,math.pi/2,0))
+58: export('skateboard')
+59: box('Jacket torso',(0,0,0),(.65,.40,.70),'mint',.10)
+60: box('Shoulder yoke',(0,0,.24),(.70,.42,.18),'ink',.045)
+61: box('Jacket zipper',(0,-.207,0),(.018,.018,.60),'white',.005)
+62: box('Chest patch',(.18,-.218,.13),(.17,.02,.15),'orange',.01)
+63: box('Back protector',(0,.23,-.02),(.43,.16,.51),'ink',.05)
+64: box('Belt',(0,0,-.34),(.64,.42,.08),'ink')
+65: export('rider_torso')
+66: box('Shorts',(0,0,0),(.54,.39,.30),'ink',.06)
+67: export('rider_pelvis')
+68: sphere('Face',(0,-.015,-.02),(.22,.205,.245),'skin')
+69: sphere('Certified helmet',(0,.015,.075),(.26,.24,.245),'orange')
+70: box('Dark visor',(0,-.218,.025),(.37,.05,.12),'ink',.04)
+71: box('Helmet stripe',(0,-.02,.30),(.085,.29,.025),'white',.012)
+72: export('rider_head')
+73: box('Sleeve',(0,0,0),(.22,.23,.36),'mint',.07)
+74: box('Elbow pad',(0,.06,-.13),(.23,.25,.14),'ink',.04)
+75: export('rider_upper_arm')
+76: box('Gloved forearm',(0,0,0),(.18,.19,.34),'skin',.06)
+77: box('Wrist guard',(0,0,-.12),(.20,.21,.13),'ink',.04)
+78: export('rider_forearm')
+79: box('Trouser leg',(0,0,0),(.235,.27,.44),'ink',.05)
+80: box('Knee pad',(0,-.145,-.14),(.22,.065,.15),'steel',.025)
+81: export('rider_thigh')
+82: box('Sock',(0,0,.035),(.19,.21,.34),'white',.035)
+83: box('Sneaker',(0,-.09,-.17),(.26,.46,.20),'ink',.05)
+84: box('Sole',(0,-.09,-.265),(.27,.47,.045),'mint',.015)
+85: export('rider_shin')
+```

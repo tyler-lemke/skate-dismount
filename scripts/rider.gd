@@ -19,6 +19,9 @@ var ragdoll: bool = false
 var torso: RagdollLimb
 var game: Node
 var pose: float = 0.0
+var skin: RiderSkin
+var riding_push_phase: float = -1.0
+var foot_contacts: Dictionary = {}
 var pose_index: int = 0
 var hat_index: int = 0
 var body_parts: Dictionary = {}
@@ -41,6 +44,12 @@ func _ready() -> void:
 		add_child(model)
 		model.position = offsets[key]
 		visuals[key] = model
+	skin = RiderSkin.new()
+	skin.name = "ContinuousHero"
+	add_child(skin)
+	skin.setup(offsets)
+	for key in visuals:
+		if key != "board": hide_legacy_meshes(visuals[key])
 	pose_ride(0.0, 0.0)
 	set_hat(hat_index)
 
@@ -73,27 +82,66 @@ func model_key(key: String) -> String:
 	if key.begins_with("shin_"): return "shin"
 	return key
 
-func pose_ride(time: float, steer: float) -> void:
+func _process(_delta: float) -> void:
+	sync_skin()
+
+func sync_skin() -> void:
+	if skin != null: skin.sync_parts(body_parts if ragdoll else visuals)
+
+func hide_legacy_meshes(node: Node) -> void:
+	if node is MeshInstance3D: node.visible = false
+	for child in node.get_children(): hide_legacy_meshes(child)
+
+func set_push_phase(value: float) -> void:
+	riding_push_phase = fposmod(value, 1.0)
+
+func pose_ride(time: float, steer: float, speed: float = 0.0, pushing: bool = false) -> void:
 	if ragdoll: return
-	var bob: float = sin(time * 10.0) * 0.025
 	for key in visuals:
 		visuals[key].position = offsets[key]
 		visuals[key].rotation = Vector3.ZERO
-	visuals.torso.position.y -= 0.12 + bob
-	visuals.torso.rotation.x = 0.18
-	visuals.torso.rotation.z = -steer * 0.13
-	visuals.head.position.y -= 0.12 + bob
-	visuals.pelvis.position.y -= 0.08
-	visuals.arm_l.rotation.z = -0.42 - steer * 0.2
-	visuals.arm_r.rotation.z = 0.42 - steer * 0.2
-	visuals.fore_l.rotation.x = -0.70
-	visuals.fore_r.rotation.x = -0.70
-	visuals.thigh_l.rotation.x = -0.32
-	visuals.thigh_r.rotation.x = -0.32
-	visuals.shin_l.rotation.x = 0.25
-	visuals.shin_r.rotation.x = 0.25
-	visuals.board.rotation.z = -steer * 0.07
 	apply_launch_pose(steer)
+	# Upper body retains the selected bail silhouette. Grounded legs use explicit
+	# hip/knee/ankle constraints, so the animation cannot be overwritten by the pose.
+	var phase: float = riding_push_phase if riding_push_phase >= 0.0 else fposmod(time / .72, 1.0)
+	var lean: float = steer * .11 * clampf(speed / 10.0, 0.0, 1.0)
+	var sway: float = sin(time * 4.0) * .012 * clampf(speed / 5.0, 0.0, 1.0)
+	if pushing: sway -= sin(phase * PI) * .10
+	for key in ["torso", "pelvis", "head", "arm_l", "arm_r", "fore_l", "fore_r"]:
+		visuals[key].position.x += lean
+		visuals[key].position.y += sway
+	for key in pose_anchors:
+		pose_anchors[key].x += lean
+		pose_anchors[key].y += sway
+	foot_contacts.clear()
+	for side in ["l", "r"]:
+		var sign_x: float = -1.0 if side == "l" else 1.0
+		# Both feet stand along the deck; the right foot performs one smooth kick.
+		var ankle: Vector3 = visuals.board.position + visuals.board.basis * Vector3(sign_x * .17, .30, -.29 if side == "l" else .30)
+		var contact: bool = true
+		if side == "r" and pushing:
+			var stroke: float = sin(phase * PI)
+			ankle.x += stroke * .38
+			ankle.z += sin(phase * TAU) * .29
+			ankle.y -= stroke * .304
+			# Recovery toe clearance; kick impulse occurs at phase .55.
+			if phase > .62: ankle.y += sin((phase-.62)/.38*PI) * .16
+			contact = phase < .10 or phase > .95
+		var hip: Vector3 = pose_anchors["hip_"+side]
+		# Positive-Z knee bend remains consistent throughout carve and recovery.
+		var delta: Vector3 = ankle - hip
+		var length: float = delta.length()
+		var bend: Vector3 = Vector3.FORWARD.cross(delta).cross(delta).normalized()
+		if bend.z < 0.0: bend = -bend
+		var knee: Vector3 = (hip + ankle) * .5 + bend * sqrt(maxf(0.0, .43*.43-length*length*.25))
+		place_segment("thigh_"+side, hip, knee)
+		# The shin frame includes the shoe. Keep its sole horizontal while planted,
+		# and retain a knee anchor for the real joint rather than rotating the shoe into the deck.
+		visuals["shin_"+side].position = ankle
+		visuals["shin_"+side].basis = visuals.board.basis
+		pose_anchors["knee_"+side] = knee
+		foot_contacts[side] = {"planted": contact, "sole": ankle + visuals.board.basis * Vector3(0,-.266,.07)}
+	sync_skin()
 
 func set_pose(index: int) -> void:
 	if ragdoll: return
@@ -195,7 +243,9 @@ func bail(velocity: Vector3, lift: float = 3.5) -> void:
 		limb.previous_angular_velocity = limb.angular_velocity
 		body_map[key] = limb
 		body_parts[key] = limb
-		if key != "board": prepare_damage_visual(key, limb, mesh)
+		if key != "board":
+			hide_legacy_meshes(mesh)
+			prepare_damage_visual(key, limb, mesh)
 		if key == "head": attach_hat(mesh)
 		limbs.append(limb)
 		visuals[key].visible = false
@@ -208,6 +258,7 @@ func bail(velocity: Vector3, lift: float = 3.5) -> void:
 		join(body_map.pelvis,body_map["thigh_"+side],to_global(pose_anchors["hip_"+side]))
 		join(body_map["thigh_"+side],body_map["shin_"+side],to_global(pose_anchors["knee_"+side]))
 	apply_damage_states(damage_states.duplicate())
+	sync_skin()
 
 func overlay_meshes(node: Node, material: StandardMaterial3D) -> void:
 	if node is MeshInstance3D: node.material_overlay = material
@@ -246,6 +297,7 @@ func set_limb_damage(limb: String, severity: float) -> void:
 	if limb == "board" or not offsets.has(limb): return
 	var value: float = clampf(severity, 0, 100)
 	damage_states[limb] = value
+	if skin != null: skin.set_damage(limb, value)
 	if not damage_materials.has(limb): return
 	var bruise: StandardMaterial3D = damage_materials[limb]
 	bruise.albedo_color = Color(.30, .045, .16, .68 * value / 100.0)

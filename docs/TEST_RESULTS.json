@@ -1,0 +1,74 @@
+{
+  "version": "3.0",
+  "engine": "Godot 4.7.2",
+  "suites": [
+    {
+      "suite": "RULES",
+      "assertions": 170,
+      "failures": 0
+    },
+    {
+      "suite": "INJURIES",
+      "assertions": 36,
+      "failures": 0
+    },
+    {
+      "suite": "INPUTS",
+      "assertions": 36,
+      "failures": 0
+    },
+    {
+      "suite": "GAME",
+      "assertions": 85,
+      "failures": 0
+    },
+    {
+      "suite": "ROUTES",
+      "assertions": 41,
+      "failures": 0
+    },
+    {
+      "suite": "PLAYABILITY",
+      "assertions": 370,
+      "failures": 0
+    },
+    {
+      "suite": "UI",
+      "assertions": 586,
+      "failures": 0
+    },
+    {
+      "suite": "AUDIO",
+      "assertions": 77,
+      "failures": 0
+    },
+    {
+      "suite": "SKATING",
+      "assertions": 12,
+      "failures": 0
+    },
+    {
+      "suite": "CRASHBREAKER",
+      "assertions": 44,
+      "failures": 0
+    },
+    {
+      "suite": "RIDER_SKIN",
+      "assertions": 210,
+      "failures": 0
+    },
+    {
+      "suite": "TRAFFIC",
+      "assertions": 93,
+      "failures": 0
+    },
+    {
+      "suite": "CAMERA",
+      "assertions": 20,
+      "failures": 0
+    }
+  ],
+  "total_assertions": 1780,
+  "failures": 0,
+  "limits": "Headless behavior/resource tests; no native GPU or human enjoyment validation."
+}

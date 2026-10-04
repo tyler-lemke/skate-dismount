@@ -21,9 +21,9 @@ const LIMB_TITLES: Dictionary = {
 }
 
 const LEVELS: Array[Dictionary] = [
-	{"name": "CIVIC CASCADE", "subtitle": "A very expensive public disturbance.", "district": "01 / OLD TOWN", "steps": 26, "rise": 0.36, "run": 1.10, "width": 11.0, "color": Color("84efbc"), "bronze": 40000, "silver": 160000, "gold": 340000, "objective": "Tip the domino lanes. Roll the drums into the taxi rank.", "tip": "Left: domino chain. Center: stair injuries. Right: premium taxi targets."},
-	{"name": "NIGHT MARKET", "subtitle": "Fresh produce. Questionable landings.", "district": "02 / AFTER HOURS", "steps": 32, "rise": 0.39, "run": 1.12, "width": 12.0, "color": Color("fa78bd"), "bronze": 40000, "silver": 140000, "gold": 325000, "objective": "Send the market carts through the fireworks supply.", "tip": "Left: cart slalom. Center: cargo drop. Right: domino fuse run."},
-	{"name": "PORT AUTHORITY", "subtitle": "One skater. An entire supply chain.", "district": "03 / TERMINAL 9", "steps": 38, "rise": 0.42, "run": 1.16, "width": 13.0, "color": Color("ffc75a"), "bronze": 60000, "silver": 240000, "gold": 550000, "objective": "Collapse the cargo towers. Ignite the terminal drum cache.", "tip": "Left: cargo towers. Center: drum avalanche. Right: heavy taxi."}
+	{"name": "CIVIC CASCADE", "subtitle": "A very expensive public disturbance.", "district": "01 / OLD TOWN", "steps": 26, "rise": 0.36, "run": 1.10, "width": 11.0, "color": Color("84efbc"), "bronze": 40000, "silver": 160000, "gold": 340000, "objective": "Connect the domino chain or seed the moving taxi pile-up.", "tip": "Outside left: skate to traffic. Bail near the last stairs and save SHIFT for the crossing."},
+	{"name": "NIGHT MARKET", "subtitle": "Fresh produce. Questionable landings.", "district": "02 / AFTER HOURS", "steps": 32, "rise": 0.39, "run": 1.12, "width": 12.0, "color": Color("fa78bd"), "bronze": 40000, "silver": 140000, "gold": 325000, "objective": "Send market cargo into the delivery crossing.", "tip": "Inside: carts, cargo and dominoes. Outside left: late bail into delivery traffic."},
+	{"name": "PORT AUTHORITY", "subtitle": "One skater. An entire supply chain.", "district": "03 / TERMINAL 9", "steps": 38, "rise": 0.42, "run": 1.16, "width": 13.0, "color": Color("ffc75a"), "bronze": 60000, "silver": 240000, "gold": 550000, "objective": "Collapse cargo towers or obstruct the terminal convoy.", "tip": "Inside: cargo and drums. Outside left: reach the convoy and redirect one vehicle."}
 ]
 var score: int = 0
 var property_damage: int = 0

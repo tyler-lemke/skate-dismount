@@ -1,7 +1,26 @@
-STAIR // WRECK 2.0 — final package verification
+STAIR // WRECK 3.0 — final package verification
 
-Built after sourcefinalC: modal input protection, results/replay hints, and stair-focused bail carry.
-Runtime: Godot 4.7.2, universal macOS executable (x86_64 and arm64).
+Godot 4.7.2 universal macOS executable: x86_64 arm64
 App: builds/StairWreck.app
 Archive: builds/StairWreck-macOS.zip
 
+SELF_CHECK: level=1 score=240992 wrecks=34 explosions=6 frames=145
+SELF_CHECK: level=2 score=344089 wrecks=37 explosions=8 frames=243
+SELF_CHECK: level=3 score=336353 wrecks=42 explosions=8 frames=173
+
+All three bundled routes completed from an empty project directory.
+19 packaged models and 15 audio streams loaded; hero rig has 11 bones and taxi imports dent morph.
+Representative docs, tests, tools and Blender sources are absent from the game PCK.
+No script errors, reported leaks or retained resources in completed checks.
+Deep strict ad-hoc signature and Info.plist checks passed; version and build version are 3.0.
+ZIP CRC passed; all 7 signed app files match the archive.
+Source suite: 1780 assertions across 13 suites, zero failures.
+
+App bytes: 354142652
+PCK bytes: 3562592
+ZIP bytes: 171197676
+ZIP SHA-256: a558b85b00dacbb9f264c563ce028f73ab7e1d4d446bb81d15720ab2e5bd1ae4
+PCK SHA-256: 77a4074084da1aa8b6286cffaf4467dbc70db667a35cbf56d30a80937f407f03
+
+Visual evidence uses Blender CPU reconstruction of Godot runtime states.
+Native GPU performance, audio audition and human enjoyment remain unverified.

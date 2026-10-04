@@ -19,11 +19,13 @@ const PAPER := Color("eff5ec")
 const MUTED := Color("9cb0b7")
 const ORANGE := Color("ff724a")
 const GOLD := Color("f4cb7b")
+const SLATE := Color("1d3541")
 const LIMB_NAMES: Array[String] = ["head", "torso", "pelvis", "arm_l", "arm_r", "fore_l", "fore_r", "thigh_l", "thigh_r", "shin_l", "shin_r"]
 const LIMB_TITLES: Array[String] = ["HEAD", "TORSO", "PELVIS", "LEFT ARM", "RIGHT ARM", "LEFT FOREARM", "RIGHT FOREARM", "LEFT THIGH", "RIGHT THIGH", "LEFT SHIN", "RIGHT SHIN"]
 var root: Control
 var menu: Control
 var hud: Control
+var live_chrome: Control
 var results: Control
 var pause_panel: Control
 var help_panel: Control
@@ -60,6 +62,8 @@ var claim_panel: Control
 var claim_lines: Array[Label] = []
 var claim_entries: Array[Dictionary] = []
 var injury_panel: Control
+var injury_rail: Panel
+var injury_details: Control
 var limb_labels: Dictionary = {}
 var limb_bars: Dictionary = {}
 var anatomy_parts: Dictionary = {}
@@ -74,6 +78,7 @@ var pose_note: Label
 var hat_note: Label
 var aim_label: Label
 var result_fund: Label
+var result_fund_bar: ProgressBar
 var result_note: Label
 var new_money: int = 0
 var result_target: int = 0
@@ -94,7 +99,7 @@ func section() -> Control:
 
 func panel(parent: Control, at: Vector2, dimensions: Vector2, color: Color = INK, border: Color = Color.TRANSPARENT) -> Panel:
 	var p:=Panel.new(); parent.add_child(p); p.position=at; p.size=dimensions; p.mouse_filter=Control.MOUSE_FILTER_IGNORE
-	var style:=StyleBoxFlat.new(); style.bg_color=color; style.border_color=border; style.set_border_width_all(1); style.set_corner_radius_all(12); p.add_theme_stylebox_override("panel",style); return p
+	var style:=StyleBoxFlat.new(); style.bg_color=color; style.border_color=border; style.set_border_width_all(1 if border.a>0 else 0); style.set_corner_radius_all(10); p.add_theme_stylebox_override("panel",style); return p
 
 func label(parent: Control, text: String, at: Vector2, dimensions: Vector2, font_size: int = 20, color: Color = PAPER) -> Label:
 	var l:=Label.new(); parent.add_child(l); l.position=at; l.size=dimensions; l.text=text; l.add_theme_font_size_override("font_size",font_size); l.add_theme_color_override("font_color",color); l.mouse_filter=Control.MOUSE_FILTER_IGNORE
@@ -112,15 +117,16 @@ func button(parent: Control, text: String, at: Vector2, dimensions: Vector2, act
 
 func build_menu() -> void:
 	menu=section()
-	panel(menu,Vector2(22,22),Vector2(470,856),Color(.045,.10,.14,.97),Color("38515b"))
-	label(menu,"FILE 001  /  THE TREATMENT FUND",Vector2(54,53),Vector2(400,30),15,MINT)
+	panel(menu,Vector2(22,22),Vector2(470,856),Color(.035,.075,.105,.985),Color("38515b"))
+	panel(menu,Vector2(22,22),Vector2(7,856),MINT)
+	label(menu,"FILE 001  /  THE TREATMENT FUND",Vector2(54,53),Vector2(400,30),14,GOLD)
 	label(menu,"STAIR",Vector2(48,85),Vector2(410,99),83)
 	label(menu,"// WRECK",Vector2(48,173),Vector2(420,93),72,MINT)
-	label(menu,"Mom needs cancer treatment.\nYour stunt policy is your last shot.",Vector2(54,285),Vector2(390,65),20,PAPER)
+	label(menu,"Mom needs cancer treatment.\nEvery better claim brings treatment closer.",Vector2(54,285),Vector2(390,67),20,PAPER)
 	label(menu,"CHOOSE A ROUTE TO FILE",Vector2(54,372),Vector2(360,30),13,MUTED)
 	for i in range(3):
 		var l:Dictionary=WreckRules.LEVELS[i]
-		var b:Button=button(menu,"0%d    %s" % [i+1,l.name],Vector2(54,412+i*70),Vector2(406,58),func(): route_requested.emit(i))
+		var b:Button=button(menu,"0%d    %s        →" % [i+1,l.name],Vector2(54,412+i*70),Vector2(406,58),func(): route_requested.emit(i))
 		b.alignment=HORIZONTAL_ALIGNMENT_LEFT
 		route_buttons.append(b)
 	best_label=label(menu,"BEST CLAIM  —",Vector2(54,638),Vector2(406,28),15,MUTED)
@@ -130,7 +136,7 @@ func build_menu() -> void:
 	label(menu,"MOM SAYS: COME HOME FOR DINNER.",Vector2(54,840),Vector2(410,22),11,MUTED)
 	panel(menu,Vector2(1044,32),Vector2(364,50),Color(.04,.10,.14,.85))
 	label(menu,"●  ALL ROUTES OPEN   /   LOCAL SAVE",Vector2(1063,44),Vector2(335,28),14,MINT)
-	panel(menu,Vector2(754,128),Vector2(654,190),Color(.04,.10,.14,.92),Color("38515b"))
+	panel(menu,Vector2(754,128),Vector2(654,190),Color(.035,.075,.105,.96),Color("38515b"))
 	label(menu,"MOM'S CANCER TREATMENT FUND",Vector2(782,151),Vector2(590,29),15,GOLD)
 	menu_fund_label=label(menu,"",Vector2(780,183),Vector2(590,55),33,PAPER)
 	fund_bar=ProgressBar.new(); menu.add_child(fund_bar); fund_bar.position=Vector2(782,238); fund_bar.size=Vector2(588,13); fund_bar.show_percentage=false; fund_bar.max_value=WreckRules.TREATMENT_GOAL
@@ -138,7 +144,7 @@ func build_menu() -> void:
 	var fund_bg:=StyleBoxFlat.new(); fund_bg.bg_color=Color("2b4551"); fund_bg.set_corner_radius_all(5)
 	fund_bar.add_theme_stylebox_override("fill",fund_fill); fund_bar.add_theme_stylebox_override("background",fund_bg)
 	menu_note_label=label(menu,"",Vector2(782,268),Vector2(590,37),16,MUTED)
-	panel(menu,Vector2(754,660),Vector2(654,218),Color(.04,.10,.14,.92),Color("38515b"))
+	panel(menu,Vector2(754,660),Vector2(654,218),Color(.035,.075,.105,.96),Color("38515b"))
 	route_title=label(menu,"",Vector2(782,710),Vector2(604,50),36)
 	route_info=label(menu,"",Vector2(784,680),Vector2(580,28),13,MINT)
 	route_desc=label(menu,"",Vector2(784,763),Vector2(580,77),17,MUTED)
@@ -146,43 +152,46 @@ func build_menu() -> void:
 
 func build_hud() -> void:
 	hud=section()
-	panel(hud,Vector2(26,26),Vector2(345,133),Color(.04,.10,.14,.92),Color("38515b"))
-	label(hud,"INSURANCE PAYOUT",Vector2(48,42),Vector2(280,28),13,GOLD)
-	score_label=label(hud,"$0",Vector2(45,67),Vector2(310,59),43,PAPER)
-	combo_label=label(hud,"",Vector2(48,132),Vector2(320,24),16,MINT)
-	panel(hud,Vector2(405,27),Vector2(602,68),Color(.04,.10,.14,.86))
-	label(hud,"FOR MOM'S TREATMENT",Vector2(426,39),Vector2(250,20),12,GOLD)
-	run_fund_label=label(hud,"",Vector2(426,61),Vector2(556,28),20,PAPER)
-	panel(hud,Vector2(1058,26),Vector2(356,86),Color(.04,.10,.14,.92))
-	phase_label=label(hud,"",Vector2(1080,40),Vector2(310,28),20,MINT)
-	timer_label=label(hud,"",Vector2(1080,73),Vector2(310,25),14,MUTED)
-	panel(hud,Vector2(1058,185),Vector2(356,74),Color(.04,.10,.14,.86),Color("38515b"))
-	aim_label=label(hud,"",Vector2(1077,199),Vector2(320,48),16,GOLD)
-	panel(hud,Vector2(26,722),Vector2(248,150),Color(.04,.10,.14,.92))
-	speed_label=label(hud,"00",Vector2(44,735),Vector2(140,79),62)
-	label(hud,"KM/H",Vector2(185,780),Vector2(70,30),14,MUTED)
-	label(hud,"GROUND SPEED",Vector2(47,833),Vector2(210,24),12,MINT)
-	panel(hud,Vector2(1040,734),Vector2(374,138),Color(.04,.10,.14,.92))
-	boost_label=label(hud,"CRASHBREAKER  ● ● ●",Vector2(1060,749),Vector2(340,28),20,MINT)
-	hint_label=label(hud,"",Vector2(1060,788),Vector2(334,75),16,MUTED)
-	power_panel=panel(hud,Vector2(448,708),Vector2(544,164),Color(.04,.10,.14,.94),Color("42606a"))
-	charge_label=label(power_panel,"HOLD SPACE TO BUILD POWER",Vector2(24,16),Vector2(496,30),20,MINT)
-	charge_bar=ProgressBar.new(); power_panel.add_child(charge_bar); charge_bar.position=Vector2(24,59); charge_bar.size=Vector2(496,19); charge_bar.show_percentage=false; charge_bar.max_value=1.0
+	live_chrome=Control.new(); hud.add_child(live_chrome); live_chrome.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); live_chrome.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	panel(live_chrome,Vector2(26,26),Vector2(345,137),Color(.025,.067,.095,.96),Color("557070"))
+	panel(live_chrome,Vector2(26,26),Vector2(5,137),MINT)
+	label(live_chrome,"INSURANCE PAYOUT",Vector2(48,43),Vector2(280,25),13,GOLD)
+	score_label=label(live_chrome,"$0",Vector2(45,68),Vector2(315,60),46,PAPER)
+	combo_label=label(live_chrome,"",Vector2(48,132),Vector2(320,24),14,MINT)
+	panel(live_chrome,Vector2(403,27),Vector2(666,57),Color(.025,.067,.095,.90))
+	label(live_chrome,"TREATMENT FUND",Vector2(422,36),Vector2(159,22),11,GOLD)
+	run_fund_label=label(live_chrome,"",Vector2(578,35),Vector2(465,33),17,PAPER)
+	panel(live_chrome,Vector2(1094,26),Vector2(320,86),Color(.025,.067,.095,.93))
+	phase_label=label(live_chrome,"",Vector2(1113,40),Vector2(282,28),19,MINT)
+	timer_label=label(live_chrome,"",Vector2(1113,73),Vector2(282,25),13,MUTED)
+	panel(live_chrome,Vector2(26,760),Vector2(178,112),Color(.025,.067,.095,.93))
+	speed_label=label(live_chrome,"00",Vector2(43,777),Vector2(85,59),44)
+	label(live_chrome,"KM/H",Vector2(127,805),Vector2(54,25),12,MUTED)
+	label(live_chrome,"SPEED",Vector2(44,846),Vector2(125,21),11,MINT)
+	panel(live_chrome,Vector2(1070,727),Vector2(344,145),Color(.025,.067,.095,.96),Color("557070"))
+	panel(live_chrome,Vector2(1070,727),Vector2(5,145),MINT)
+	boost_label=label(live_chrome,"CRASHBREAKER  /  READY",Vector2(1092,741),Vector2(300,28),18,MINT)
+	aim_label=label(live_chrome,"",Vector2(1092,773),Vector2(300,40),14,GOLD)
+	hint_label=label(live_chrome,"",Vector2(1092,820),Vector2(300,48),13,MUTED)
+	power_panel=panel(live_chrome,Vector2(433,746),Vector2(577,126),Color(.025,.067,.095,.95),Color("557070"))
+	charge_label=label(power_panel,"HOLD SPACE TO BUILD POWER",Vector2(21,13),Vector2(534,26),18,MINT)
+	charge_bar=ProgressBar.new(); power_panel.add_child(charge_bar); charge_bar.position=Vector2(21,46); charge_bar.size=Vector2(535,13); charge_bar.show_percentage=false; charge_bar.max_value=1.0
 	var fill:=StyleBoxFlat.new(); fill.bg_color=MINT; fill.set_corner_radius_all(5)
 	var bg:=StyleBoxFlat.new(); bg.bg_color=Color("2b4551"); bg.set_corner_radius_all(5)
 	charge_bar.add_theme_stylebox_override("fill",fill); charge_bar.add_theme_stylebox_override("background",bg)
-	label(power_panel,"Release to launch  •  A / D choose your starting lane\nW push  •  SPACE bail  •  SHIFT crashbreaker",Vector2(24,90),Vector2(505,54),16,MUTED)
-	toast_label=label(hud,"",Vector2(425,107),Vector2(590,54),27,MINT); toast_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
-	button(hud,"II",Vector2(1352,130),Vector2(62,44),func(): get_parent().toggle_pause())
-	replay_banner=label(hud,"REPLAY  /  THE CLAIM IN MOTION",Vector2(438,117),Vector2(575,45),22,MINT); replay_banner.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; replay_banner.visible=false
+	label(power_panel,"RELEASE launch   •   A / D lane   •   W push\nSPACE bail   •   SHIFT one crashbreaker",Vector2(21,69),Vector2(535,50),14,MUTED)
+	toast_label=label(live_chrome,"",Vector2(443,104),Vector2(570,44),23,MINT); toast_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	button(live_chrome,"II",Vector2(1355,130),Vector2(59,43),func(): get_parent().toggle_pause())
+	replay_banner=label(live_chrome,"REPLAY  /  THE CLAIM IN MOTION",Vector2(441,112),Vector2(568,39),20,MINT); replay_banner.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; replay_banner.visible=false
 	build_injury_file()
 	build_claim_feed()
 	build_pose_selector()
 
 func build_injury_file() -> void:
-	injury_panel=panel(hud,Vector2(26,177),Vector2(345,523),Color(.04,.10,.14,.9),Color("38515b"))
-	label(injury_panel,"INJURY CLAIM FILE",Vector2(21,15),Vector2(300,27),15,GOLD)
-	label(injury_panel,"IMPACT-VERIFIED  /  11 REGIONS",Vector2(21,43),Vector2(300,22),11,MUTED)
+	injury_panel=panel(hud,Vector2(26,183),Vector2(304,230),Color(.025,.067,.095,.95),Color("557070"))
+	injury_rail=panel(injury_panel,Vector2(0,0),Vector2(4,230),ORANGE)
+	label(injury_panel,"INJURY CLAIM FILE",Vector2(17,12),Vector2(270,25),14,GOLD)
+	label(injury_panel,"IMPACT VERIFIED  /  11 REGIONS",Vector2(17,36),Vector2(270,20),10,MUTED)
 	for stage in ["OK", "BRUISED", "STRAINED", "FRACTURED"]:
 		var shape_style:=StyleBoxFlat.new()
 		shape_style.bg_color={"OK":Color("43606b"),"BRUISED":GOLD,"STRAINED":Color("ed9b6c"),"FRACTURED":ORANGE}[stage]
@@ -191,17 +200,17 @@ func build_injury_file() -> void:
 		shape_style.set_corner_radius_all(6)
 		anatomy_styles[stage]=shape_style
 	var shapes:Dictionary={
-		"head":Rect2(85,75,26,24),
-		"torso":Rect2(79,103,38,39),
-		"pelvis":Rect2(83,145,30,20),
-		"arm_l":Rect2(64,105,13,35),
-		"arm_r":Rect2(119,105,13,35),
-		"fore_l":Rect2(53,143,11,32),
-		"fore_r":Rect2(132,143,11,32),
-		"thigh_l":Rect2(80,168,14,25),
-		"thigh_r":Rect2(102,168,14,25),
-		"shin_l":Rect2(78,196,14,29),
-		"shin_r":Rect2(104,196,14,29)
+		"head":Rect2(82,68,24,21),
+		"torso":Rect2(77,92,34,36),
+		"pelvis":Rect2(81,131,27,18),
+		"arm_l":Rect2(61,94,13,32),
+		"arm_r":Rect2(114,94,13,32),
+		"fore_l":Rect2(52,129,11,28),
+		"fore_r":Rect2(125,129,11,28),
+		"thigh_l":Rect2(78,152,13,23),
+		"thigh_r":Rect2(98,152,13,23),
+		"shin_l":Rect2(77,178,13,29),
+		"shin_r":Rect2(99,178,13,29)
 	}
 	for key in LIMB_NAMES:
 		var shape_rect:Rect2=shapes[key]
@@ -209,35 +218,36 @@ func build_injury_file() -> void:
 		piece.add_theme_stylebox_override("panel",anatomy_styles["OK"])
 		anatomy_parts[key]=piece
 		anatomy_stage[key]="OK"
-	label(injury_panel,"L",Vector2(37,107),Vector2(16,17),11,MUTED)
-	label(injury_panel,"R",Vector2(147,107),Vector2(16,17),11,MUTED)
-	label(injury_panel,"REGION IN FOCUS",Vector2(174,80),Vector2(150,20),11,GOLD)
-	anatomy_region_label=label(injury_panel,"NO IMPACT YET",Vector2(174,107),Vector2(150,29),14,PAPER)
-	anatomy_diagnosis_label=label(injury_panel,"ALL CLEAR",Vector2(174,142),Vector2(150,24),13,MUTED)
-	anatomy_payout_label=label(injury_panel,"CLAIM  $0",Vector2(174,177),Vector2(150,25),13,GOLD)
-	panel(injury_panel,Vector2(20,230),Vector2(303,2),Color("38515b"))
+	label(injury_panel,"L",Vector2(36,98),Vector2(16,17),10,MUTED)
+	label(injury_panel,"R",Vector2(137,98),Vector2(16,17),10,MUTED)
+	label(injury_panel,"REGION IN FOCUS",Vector2(155,77),Vector2(137,20),10,GOLD)
+	anatomy_region_label=label(injury_panel,"NO IMPACT",Vector2(155,101),Vector2(137,26),12,PAPER)
+	anatomy_diagnosis_label=label(injury_panel,"ALL CLEAR",Vector2(155,131),Vector2(137,24),12,MUTED)
+	anatomy_payout_label=label(injury_panel,"CLAIM  $0",Vector2(155,161),Vector2(137,25),12,GOLD)
+	injury_details=Control.new(); injury_panel.add_child(injury_details); injury_details.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	panel(injury_details,Vector2(17,217),Vector2(270,2),Color("38515b"))
 	for i in LIMB_NAMES.size():
 		var key: String=LIMB_NAMES[i]
-		var y: float=238+i*22
-		var entry:Label=label(injury_panel,LIMB_TITLES[i]+"  OK",Vector2(21,y),Vector2(225,21),13,MUTED)
+		var y: float=225+i*19
+		var entry:Label=label(injury_details,LIMB_TITLES[i]+"  OK",Vector2(17,y),Vector2(216,19),11,MUTED)
 		limb_labels[key]=entry
-		var bar:=ProgressBar.new(); injury_panel.add_child(bar); bar.add_theme_font_size_override("font_size",1); bar.position=Vector2(254,y+6); bar.size=Vector2(67,9); bar.show_percentage=false; bar.max_value=100.0
+		var bar:=ProgressBar.new(); injury_details.add_child(bar); bar.add_theme_font_size_override("font_size",1); bar.position=Vector2(239,y+5); bar.size=Vector2(48,8); bar.show_percentage=false; bar.max_value=100.0
 		var bg:=StyleBoxFlat.new(); bg.bg_color=Color("29404a"); bg.set_corner_radius_all(4)
 		var fill:=StyleBoxFlat.new(); fill.bg_color=ORANGE; fill.set_corner_radius_all(4)
 		bar.add_theme_stylebox_override("background",bg); bar.add_theme_stylebox_override("fill",fill)
 		limb_bars[key]=bar
-	label(injury_panel,"Only verified impacts mark this file.",Vector2(21,495),Vector2(310,20),12,MUTED)
+	label(injury_details,"Only verified impacts are paid.",Vector2(17,444),Vector2(270,18),11,MUTED)
+	injury_details.visible=false
 	injury_panel.visible=false
 
 func build_claim_feed() -> void:
-	claim_panel=panel(hud,Vector2(405,171),Vector2(470,119),Color(.04,.10,.14,.88),Color("38515b"))
-	label(claim_panel,"CLAIM RECEIPTS",Vector2(18,10),Vector2(300,23),12,GOLD)
-	for i in 3:
-		claim_lines.append(label(claim_panel,"",Vector2(18,34+i*25),Vector2(440,24),16,PAPER))
+	claim_panel=panel(live_chrome,Vector2(919,259),Vector2(495,68),Color(.025,.067,.095,.94),Color("557070"))
+	label(claim_panel,"LATEST CLAIM RECEIPTS",Vector2(17,9),Vector2(455,20),11,GOLD)
+	claim_lines.append(label(claim_panel,"",Vector2(17,34),Vector2(460,26),14,PAPER))
 	claim_panel.visible=false
 
 func build_pose_selector() -> void:
-	pose_panel=panel(hud,Vector2(26,177),Vector2(345,420),Color(.04,.10,.14,.92),Color("42606a"))
+	pose_panel=panel(live_chrome,Vector2(26,183),Vector2(345,420),Color(.025,.067,.095,.96),Color("42606a"))
 	label(pose_panel,"CHOOSE A BAIL POSE",Vector2(22,17),Vector2(301,28),16,GOLD)
 	for i in WreckRules.POSES.size():
 		var pose:Dictionary=WreckRules.POSES[i]
@@ -253,7 +263,8 @@ func build_pose_selector() -> void:
 
 func build_results() -> void:
 	results=section()
-	panel(results,Vector2(365,63),Vector2(710,783),Color(.035,.085,.12,.98),Color("506770"))
+	panel(results,Vector2(365,63),Vector2(710,783),Color(.028,.067,.092,.99),Color("506770"))
+	panel(results,Vector2(365,63),Vector2(6,783),MINT)
 	label(results,"CLAIM FILED  /  RUN REPORT",Vector2(407,96),Vector2(625,27),14,GOLD)
 	result_title=label(results,"",Vector2(405,132),Vector2(625,43),31,MINT)
 	label(results,"TOTAL INSURANCE PAYOUT",Vector2(407,204),Vector2(625,25),14,MUTED)
@@ -262,8 +273,12 @@ func build_results() -> void:
 	result_stats=label(results,"",Vector2(408,351),Vector2(620,132),19,MUTED)
 	panel(results,Vector2(402,495),Vector2(636,103),Color("172d36"),Color("45616a"))
 	result_fund=label(results,"",Vector2(424,510),Vector2(592,32),20,GOLD)
-	result_note=label(results,"",Vector2(424,550),Vector2(592,34),15,PAPER)
-	result_tip=label(results,"",Vector2(408,612),Vector2(620,38),15,MINT)
+	result_fund_bar=ProgressBar.new(); results.add_child(result_fund_bar); result_fund_bar.position=Vector2(424,547); result_fund_bar.size=Vector2(591,9); result_fund_bar.add_theme_font_size_override("font_size",1); result_fund_bar.show_percentage=false; result_fund_bar.max_value=WreckRules.TREATMENT_GOAL
+	var result_fill:=StyleBoxFlat.new(); result_fill.bg_color=MINT; result_fill.set_corner_radius_all(4)
+	var result_track:=StyleBoxFlat.new(); result_track.bg_color=Color("314b54"); result_track.set_corner_radius_all(4)
+	result_fund_bar.add_theme_stylebox_override("fill",result_fill); result_fund_bar.add_theme_stylebox_override("background",result_track)
+	result_note=label(results,"",Vector2(424,562),Vector2(592,28),14,PAPER)
+	result_tip=label(results,"",Vector2(408,612),Vector2(620,48),15,MINT)
 	result_tip.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
 	button(results,"RUN IT BACK",Vector2(407,665),Vector2(300,55),func(): retry_requested.emit(),true)
 	next_button=button(results,"NEXT ROUTE →",Vector2(726,665),Vector2(308,55),func(): next_requested.emit())
@@ -294,7 +309,7 @@ func build_help() -> void:
 	label(help_panel,"02   COMMIT TO THE CRASH",Vector2(360,369),Vector2(700,30),21)
 	label(help_panel,"Choose a pose before launch. SPACE bails into a ragdoll.\nAim for dominoes, carts, cargo towers, and orange drums.",Vector2(360,408),Vector2(714,65),19,MUTED)
 	label(help_panel,"03   KEEP THE CASCADE ALIVE",Vector2(360,494),Vector2(700,30),21)
-	label(help_panel,"A / D aftertouch; SHIFT spends an aimed crashbreaker.\nTAB holds slow motion. ENTER files the current claim.\nR retries; ESC pauses. Actual hits pay the fictional stunt policy.",Vector2(360,533),Vector2(714,100),19,MUTED)
+	label(help_panel,"A / D aftertouch; SHIFT spends your one aimed crashbreaker.\nTAB holds slow motion. ENTER files the current claim.\nR retries; ESC pauses. Actual hits pay the fictional stunt policy.",Vector2(360,533),Vector2(714,100),18,MUTED)
 	button(help_panel,"LET'S FILE IT  →",Vector2(360,677),Vector2(716,61),func(): close_help(),true)
 
 func set_route(index: int, best: int) -> void:
@@ -306,6 +321,8 @@ func set_route(index: int, best: int) -> void:
 	best_label.text="BEST CLAIM   $"+WreckRules.money(best)
 	for i in range(3):
 		route_buttons[i].add_theme_color_override("font_color",MINT if i==index else MUTED)
+		var card:=StyleBoxFlat.new(); card.bg_color=Color("21444d") if i==index else SLATE; card.border_color=MINT if i==index else Color("36515b"); card.set_border_width_all(2 if i==index else 1); card.set_corner_radius_all(8); card.content_margin_left=18
+		route_buttons[i].add_theme_stylebox_override("normal",card)
 	update_campaign()
 
 func show_menu() -> void:
@@ -315,11 +332,13 @@ func show_menu() -> void:
 
 func show_game() -> void:
 	menu.visible=false; hud.visible=true; results.visible=false; pause_panel.visible=false; help_panel.visible=false
+	live_chrome.visible=true
 	current_state="READY"
 	replay_banner.visible=false
 	claim_entries.clear()
 	claim_panel.visible=false
 	injury_panel.visible=false
+	injury_panel.size.y=230; injury_rail.size.y=230; injury_details.visible=false
 	update_campaign()
 
 func update_campaign(money_added: int = 0) -> void:
@@ -333,7 +352,8 @@ func update_campaign(money_added: int = 0) -> void:
 	run_fund_label.text="SECURED  $%s  /  $%s" % [WreckRules.money(fund),WreckRules.money(goal)]
 
 func show_results(rules: WreckRules, index: int, is_best: bool) -> void:
-	results.visible=true; power_panel.visible=false; pose_panel.visible=false; injury_panel.visible=true; claim_panel.visible=false
+	results.visible=true; hud.visible=true; live_chrome.visible=false; power_panel.visible=false; pose_panel.visible=false; injury_panel.visible=true; claim_panel.visible=false
+	injury_panel.size.y=472; injury_rail.size.y=472; injury_details.visible=true
 	current_state="RESULTS"
 	update_injury_file(rules)
 	var medal:String=rules.medal(index)
@@ -346,6 +366,7 @@ func show_results(rules: WreckRules, index: int, is_best: bool) -> void:
 	result_score.text="$0"
 	result_stats.text="PROPERTY CLAIM                     $%s\nINJURY CLAIM                            $%s\n%d objects wrecked    /    %d explosions\n%d-hit cascade    /    %d km/h peak" % [WreckRules.money(rules.property_damage),WreckRules.money(rules.rider_damage),rules.destroyed,rules.explosions,rules.best_combo,int(rules.peak_speed*3.6)]
 	result_fund.text="TREATMENT FUND     $%s / $%s" % [WreckRules.money(fund),WreckRules.money(WreckRules.TREATMENT_GOAL)]
+	result_fund_bar.value=mini(fund,WreckRules.TREATMENT_GOAL)
 	if fund>=WreckRules.TREATMENT_GOAL:
 		result_note.text="Mom: Treatment starts tomorrow. Come home."
 	elif new_money>0:
@@ -357,6 +378,7 @@ func show_results(rules: WreckRules, index: int, is_best: bool) -> void:
 
 func update_game(rules: WreckRules, state: String, speed: float, charge: float, boosts: int, remaining: float, slow: bool) -> void:
 	current_state=state
+	live_chrome.visible=state!="RESULTS"
 	score_label.text="$"+WreckRules.money(rules.score)
 	if state=="RESULTS": combo_label.text="CLAIM SETTLED"
 	elif state=="REPLAY": combo_label.text="RECORDED CASCADE  /  %d HITS" % rules.best_combo
@@ -369,18 +391,21 @@ func update_game(rules: WreckRules, state: String, speed: float, charge: float, 
 	else: timer_label.text="C CAMERA  /  ESC PAUSE"
 	speed_label.text="%02d" % int(speed*3.6)
 	if state=="RESULTS":
-		boost_label.text="CLAIM LOCKED"
+		boost_label.text="CLAIM SETTLED"
 		hint_label.text="R retry / V replay\nESC route select"
 	elif state=="REPLAY":
-		boost_label.text="RECORDED CRASH"
+		boost_label.text="CRASHBREAKER / RECORDED"
 		hint_label.text="R retry / C camera\nESC pause"
 	else:
-		boost_label.text="CRASHBREAKER  "+"● ".repeat(boosts)+"○ ".repeat(3-boosts)
-		hint_label.text="A D aim / S uphill / SHIFT fire\nENTER file / TAB slow / R retry" if state=="CRASH" else "W push  /  A D steer\nSPACE bail  /  C camera"
+		boost_label.text="CRASHBREAKER / READY" if boosts>0 else "CRASHBREAKER / SPENT"
+		hint_label.text="A / D aim  ·  SHIFT spend\nENTER file  ·  TAB slow" if state=="CRASH" else "A / D steer  ·  W push\nSPACE bail  ·  C camera"
 	boost_label.add_theme_color_override("font_color",MUTED if state in ["RESULTS","REPLAY"] or boosts<=0 else MINT)
 	power_panel.visible=state=="READY"
 	pose_panel.visible=state=="READY"
 	injury_panel.visible=state in ["CRASH","REPLAY","RESULTS"]
+	injury_details.visible=state=="RESULTS"
+	injury_panel.size.y=472 if state=="RESULTS" else 230
+	injury_rail.size.y=injury_panel.size.y
 	claim_panel.visible=state=="CRASH" and not claim_entries.is_empty()
 	charge_bar.value=charge
 	charge_label.text="RELEASE TO LAUNCH   %d%% POWER" % int(charge*100) if charge>0 else "HOLD SPACE TO BUILD POWER"
@@ -394,14 +419,13 @@ func update_game(rules: WreckRules, state: String, speed: float, charge: float, 
 		elif aim.x>.35: direction="RIGHT"
 		elif aim.z<0: direction="UPHILL"
 		else: direction="DOWNSTAIRS"
-		var cooldown:float=get_parent().boost_cooldown
-		aim_label.text="SHIFT  /  %s\n%s" % [direction,"READY" if cooldown<=0 and boosts>0 else ("RECHARGING" if boosts>0 else "NO BOOSTS LEFT")]
+		aim_label.text="SHIFT  /  AIM %s\n%s" % [direction,"ONE CHARGE READY" if boosts>0 else "CHARGE SPENT"]
 	elif state=="RESULTS":
 		aim_label.text="CLAIM SETTLED\nV REPLAY / R RETRY"
 	elif state=="REPLAY":
 		aim_label.text="REPLAYING CLAIM\nNO NEW PAYOUT"
 	else:
-		aim_label.text="SHIFT  /  AIMED CRASHBREAKER\nTHREE BOOSTS PER RUN"
+		aim_label.text="ONE CRASHBREAKER\nAIM AND SPEND AFTER BAIL"
 	var secured:int=get_parent().fund_total()
 	var preview:int=maxi(0,rules.score-get_parent().best_scores[get_parent().level_index]) if state in ["RUN","CRASH"] else 0
 	if state=="REPLAY": run_fund_label.text="RECORDED PAYOUT $%s  /  NO NEW CLAIM" % WreckRules.money(rules.score)
@@ -475,10 +499,16 @@ func refresh_claim_feed() -> void:
 	var shown:Array[Dictionary]=[]
 	var priority:int=-1
 	for i in claim_entries.size():
-		if bool(claim_entries[i].injury):
+		if not bool(claim_entries[i].injury) and str(claim_entries[i].name).contains("→ CAR "):
 			priority=i
 			shown.append(claim_entries[i])
 			break
+	if priority<0:
+		for i in claim_entries.size():
+			if bool(claim_entries[i].injury):
+				priority=i
+				shown.append(claim_entries[i])
+				break
 	for i in claim_entries.size():
 		if i==priority: continue
 		shown.append(claim_entries[i])
