@@ -78,6 +78,36 @@ class CandidateControls(unittest.TestCase):
                 archive.writestr(info, b"../../outside")
         return path
 
+    def serialized_pack_fixture(self, name, *, hang=False):
+        directory, app, _ = self.fixture(name)
+        smoke = candidate.PROJECT / "builds/repair_work/R13/packer-smoke-20261005T024931.157278Z-2faa6e14/probe.pck"
+        pack = app / "Contents/MacOS/StairWreck.pck"
+        pack.write_bytes(smoke.read_bytes())
+        entries = sorted(({key: entry[key] for key in ("path", "bytes", "sha256")}
+                          for entry in candidate.read_pck(pack)["files"]), key=lambda entry: entry["path"])
+        sources = [entry for entry in entries if not entry["path"].startswith(".godot/")]
+        sources += [candidate.file_entry(candidate.PROJECT / name, name)
+                    for name in ("tools/package_assets_probe.gd", "tools/packaged_records_probe.gd")]
+        sources.sort(key=lambda entry: entry["path"])
+        cache = {"files": [entry for entry in entries if entry["path"].startswith(".godot/")],
+                 "import_settings_regenerated": False}
+        identity = candidate.identity_payload(sources, cache, self.engine)
+        build_id = hashlib.sha256(candidate.canonical(identity)).hexdigest()
+        run_bounded.write_json(app / "Contents/Resources/build_identity.json", {"build_id":build_id,"identity":identity})
+        plist_path = app / "Contents/Info.plist"
+        plist = plistlib.loads(plist_path.read_bytes())
+        plist["StairWreckBuildID"] = build_id
+        plist_path.write_bytes(plistlib.dumps(plist))
+        if hang:
+            (app / "Contents/MacOS/StairWreck").write_text("#!/usr/bin/env python3\nimport time\ntime.sleep(30)\n")
+        report = {"candidate_directory":str(directory),"build_id":build_id,"identity":identity,"engine":self.engine,
+                  "input_inventory":sources,"existing_import_cache":cache,"packed_inputs":entries,
+                  "pck":candidate.file_entry(pack,"Contents/MacOS/StairWreck.pck"),
+                  "app_file_map":candidate.app_file_map(app),"extracted_app":str(app),"bounded_checks":{}}
+        archive = self.archive(directory,app)
+        report["zip"] = candidate.file_entry(archive,candidate.ZIP_NAME)
+        return directory,app,report
+
     def rejects(self, expected, operation):
         with self.assertRaisesRegex(candidate.CandidateError, expected) as caught:
             operation()
@@ -202,6 +232,58 @@ class CandidateControls(unittest.TestCase):
         directory, app, expected = self.fixture("altered PCK")
         (app / "Contents/MacOS/StairWreck.pck").write_bytes(b"tampered disposable pack\n")
         self.rejects("app file bytes", lambda: candidate.validate_app(app, self.build_id, self.engine, expected_map=expected))
+
+    def test_refreshed_output_hashes_cannot_disconnect_pack_from_source_identity(self):
+        directory, app, report = self.serialized_pack_fixture("changed pack refreshed output manifest")
+        candidate.verify_outputs(directory,report)
+        pack = app / "Contents/MacOS/StairWreck.pck"
+        # Change actual file bytes and repair the PCK entry MD5, so serialization
+        # remains valid. The original embedded canonical input identity stays fixed.
+        with pack.open("r+b") as stream:
+            header=struct.unpack("<6I2Q",stream.read(40))
+            filebase,directory_offset=header[-2:]
+            stream.seek(directory_offset+4)
+            path_length,=struct.unpack("<I",stream.read(4))
+            stream.seek(path_length,os.SEEK_CUR)
+            offset,length=struct.unpack("<QQ",stream.read(16))
+            md5_position=stream.tell()
+            self.assertGreater(length,0)
+            stream.seek(filebase+offset)
+            changed=bytearray(stream.read(length))
+            changed[-1]^=0x10
+            stream.seek(filebase+offset)
+            stream.write(changed)
+            stream.seek(md5_position)
+            stream.write(hashlib.md5(changed).digest())
+        report["packed_inputs"] = sorted(({key:entry[key] for key in ("path","bytes","sha256")}
+                                         for entry in candidate.read_pck(pack)["files"]),key=lambda entry:entry["path"])
+        report["pck"]=candidate.file_entry(pack,"Contents/MacOS/StairWreck.pck")
+        report["app_file_map"]=candidate.app_file_map(app)
+        report["zip"]=candidate.file_entry(self.archive(directory,app),candidate.ZIP_NAME)
+        self.rejects("packed inventory differs from canonical",lambda:candidate.verify_outputs(directory,report))
+
+    def test_repeat_standalone_runtime_failure_revokes_current_pass_labels(self):
+        directory, app, report = self.serialized_pack_fixture("repeat runtime actual timeout",hang=True)
+        report.update({"success":True,"runtime_check_id":"prior-control-only","candidate_status":"candidate_headless_and_storage_verified_native_pending",
+                       "packaged_runtime_status":"passed","normal_packaged_persistence":"passed","archive_verified":True,
+                       "validation_scope":"candidate_archive_headless_runtime_and_isolated_bookkeeping_only",
+                       "packaged_routes":[{"scope":"prior disposable control state; no game claim"}]})
+        run_bounded.write_json(directory / "manifest.json",report)
+        caller=subprocess.run([sys.executable,str(candidate.PROJECT / "tools/build_candidate.py"),"check-runtime",
+                               "--candidate",str(directory),"--timeout-seconds","10"],capture_output=True,text=True,timeout=20)
+        (directory / "caller.output.log").write_text(caller.stdout+caller.stderr)
+        self.assertEqual(caller.returncode,1)
+        self.assertIn("deadline exceeded",caller.stderr)
+        actual=json.loads((directory / "manifest.json").read_text())
+        self.assertFalse(actual["success"])
+        self.assertEqual(actual["candidate_status"],"candidate_runtime_checks_failed")
+        self.assertEqual(actual["packaged_runtime_status"],"failed")
+        self.assertEqual(actual["normal_packaged_persistence"],"not_run")
+        self.assertEqual(actual["validation_scope"],"candidate_archive_integrity_only")
+        self.assertNotIn("packaged_routes",actual)
+        self.assertEqual(actual["runtime_check_history"][0]["runtime_check_id"],"prior-control-only")
+        self.assertEqual(len(actual["bounded_checks"]),1)
+        self.assertTrue(next(iter(actual["bounded_checks"].values()))["timed_out"])
 
     def test_source_mutation_during_construction(self):
         path = ARTIFACTS / "mutated authored input.gd"

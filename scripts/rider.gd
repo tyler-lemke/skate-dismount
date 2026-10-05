@@ -1,6 +1,8 @@
 class_name Skater
 extends Node3D
 
+const CollisionGeometry = preload("res://scripts/rider_collision.gd")
+
 const MODELS: Dictionary = {
 	"torso": preload("res://assets/models/rider_torso.glb"),
 	"pelvis": preload("res://assets/models/rider_pelvis.glb"),
@@ -31,6 +33,7 @@ var damage_states: Dictionary = {}
 var damage_materials: Dictionary = {}
 var damage_patches: Dictionary = {}
 var pose_anchors: Dictionary = {}
+var collision_gates: Array[Dictionary] = []
 var offsets: Dictionary = {
 	"torso": Vector3(0, 1.35, 0), "pelvis": Vector3(0, 0.90, 0), "head": Vector3(0, 1.99, 0.0),
 	"arm_l": Vector3(-0.44,1.34,0), "arm_r": Vector3(0.44,1.34,0),
@@ -90,6 +93,47 @@ func _process(_delta: float) -> void:
 	# Render is the sole recurring bone-pose owner. Immediate resets/export use
 	# the public simulation sync explicitly, never as a second physics callback.
 	sync_skin(true)
+
+func _physics_process(_delta: float) -> void:
+	if not ragdoll or (is_instance_valid(game) and not game.is_live()): return
+	apply_assembly_energy_envelope()
+	for gate in collision_gates:
+		if not gate.waiting or not is_instance_valid(gate.first) or gate.first.freeze: continue
+		gate.query.transform = gate.first.global_transform * gate.shape.transform
+		if gate.first.get_world_3d().direct_space_state.intersect_shape(gate.query,1).is_empty():
+			gate.first.remove_collision_exception_with(gate.second)
+			gate.second.remove_collision_exception_with(gate.first)
+			gate.waiting = false
+
+func apply_assembly_energy_envelope() -> void:
+	var factor: float = 1.0
+	var min_y: float = INF
+	var max_y: float = -INF
+	for body in limbs:
+		if body.limb_name == "board" or body.freeze: continue
+		factor = minf(factor,minf(36.0/maxf(36.0,body.linear_velocity.length()),18.0/maxf(18.0,body.angular_velocity.length())))
+		min_y = minf(min_y,body.linear_velocity.y)
+		max_y = maxf(max_y,body.linear_velocity.y)
+	if min_y == INF: return
+	factor = minf(factor,33.0/maxf(33.0,max_y-min_y))
+	var vertical: float = clampf(0.0,-24.0-min_y*factor,9.0-max_y*factor)
+	# A shared vertical translation can increase a horizontal body's norm.
+	# Recheck that combined vector and shrink the whole affine correction.
+	var secondary: float = 1.0
+	for body in limbs:
+		if body.limb_name == "board" or body.freeze: continue
+		secondary = minf(secondary,36.0/maxf(36.0,(body.linear_velocity*factor+Vector3(0,vertical,0)).length()))
+	factor *= secondary
+	vertical *= secondary
+	if factor == 1.0 and vertical == 0.0: return
+	for body in limbs:
+		if body.limb_name == "board" or body.freeze: continue
+		body.linear_velocity = body.linear_velocity * factor + Vector3(0,vertical,0)
+		body.angular_velocity *= factor
+		# Keep the incoming velocity oracle in the same corrected frame, so the
+		# arcade ceiling cannot fabricate a subsequent injury or payout.
+		body.previous_linear_velocity = body.previous_linear_velocity * factor + Vector3(0,vertical,0)
+		body.previous_angular_velocity *= factor
 
 func sync_skin(use_interpolated: bool = false) -> void:
 	if skin != null: skin.sync_parts(body_parts if ragdoll else visuals, use_interpolated)
@@ -232,14 +276,16 @@ func bail(velocity: Vector3, lift: float = 3.5) -> void:
 		limb.mass = 11.0 if key == "torso" else (6.0 if key == "pelvis" else 2.0)
 		if key == "board": limb.mass = 2.0
 		var shape := CollisionShape3D.new()
-		var box := BoxShape3D.new()
-		match key:
-			"torso": box.size = Vector3(.64,.68,.4)
-			"pelvis": box.size = Vector3(.52,.28,.38)
-			"head": box.size = Vector3(.44,.48,.42)
-			"board": box.size = Vector3(.76,.18,1.65)
-			_: box.size = Vector3(.21,.35,.24)
-		shape.shape = box
+		shape.shape = CollisionGeometry.create_shape(key)
+		shape.transform = CollisionGeometry.offset(key)
+		limb.use_assembly_envelope = key != "board"
+		if key.begins_with("shin_"):
+			# The imported shin includes an ankle/shoe frame. Center its mass at
+			# the calf instead of giving the knee a half-meter shoe-inertia lever.
+			var size := Vector3(.311,.512,.405)
+			limb.inertia = limb.mass / 12.0 * Vector3(size.y*size.y+size.z*size.z,size.x*size.x+size.z*size.z,size.x*size.x+size.y*size.y)
+			limb.center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM
+			limb.center_of_mass = Vector3(0,.24,0)
 		limb.add_child(shape)
 		var mesh: Node3D = MODELS[model_key(key)].instantiate()
 		mesh.name = "RiderModel"
@@ -270,8 +316,37 @@ func bail(velocity: Vector3, lift: float = 3.5) -> void:
 		join(body_map["arm_"+side],body_map["fore_"+side],to_global(pose_anchors["elbow_"+side]))
 		join(body_map.pelvis,body_map["thigh_"+side],to_global(pose_anchors["hip_"+side]))
 		join(body_map["thigh_"+side],body_map["shin_"+side],to_global(pose_anchors["knee_"+side]))
+	configure_anatomical_contacts()
 	apply_damage_states(damage_states.duplicate())
 	sync_skin()
+
+func configure_anatomical_contacts() -> void:
+	# Rounded chest corners leave only 9.7mm of conservative TUCK overlap.
+	# Gentle contact recovery can keep both forearms outside the visible shirt
+	# from the first tick; waiting for full separation permits an entire fold.
+	torso.collision_layer = 4 | 0x20
+	torso.collision_mask = 3 | 0x40
+	for key in ["fore_l","fore_r"]:
+		body_parts[key].collision_layer = 4 | 0x40
+		body_parts[key].collision_mask = 3 | 0x20
+	var head: RagdollLimb = body_parts.head
+	var pelvis: RagdollLimb = body_parts.pelvis
+	head.collision_layer = 4 | 0x80
+	head.collision_mask = 3 | 0x100
+	pelvis.collision_layer = 4 | 0x100
+	pelvis.collision_mask = 3 | 0x80
+	for body in limbs: body.force_update_transform()
+	var shape: CollisionShape3D = head.get_child(0)
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = shape.shape
+	query.transform = head.global_transform * shape.transform
+	query.margin = .002
+	query.collision_mask = 0x100
+	var overlapping: bool = not head.get_world_3d().direct_space_state.intersect_shape(query,1).is_empty()
+	if overlapping:
+		head.add_collision_exception_with(pelvis)
+		pelvis.add_collision_exception_with(head)
+	collision_gates.append({"first":head,"second":pelvis,"shape":shape,"query":query,"waiting":overlapping})
 
 func overlay_meshes(node: Node, material: StandardMaterial3D) -> void:
 	if node is MeshInstance3D: node.material_overlay = material
@@ -329,6 +404,23 @@ func apply_damage_states(states: Dictionary) -> void:
 		if key != "board": set_limb_damage(key, float(snapshot.get(key, 0.0)))
 
 func join(a: RigidBody3D, b: RigidBody3D, at: Vector3) -> void:
+	if b == body_parts.head:
+		var neck := ConeTwistJoint3D.new()
+		get_parent().add_child(neck)
+		var spine: Basis = bail_frames.torso.basis
+		# ConeTwist's twist axis is local X; the modeled spine is local Y.
+		neck.global_transform = Transform3D(Basis(spine.y,spine.z,spine.x),at)
+		neck.node_a = neck.get_path_to(a)
+		neck.node_b = neck.get_path_to(b)
+		neck.exclude_nodes_from_collision = true
+		neck.set_param(ConeTwistJoint3D.PARAM_SWING_SPAN,deg_to_rad(50.0))
+		neck.set_param(ConeTwistJoint3D.PARAM_TWIST_SPAN,deg_to_rad(65.0))
+		neck.set_param(ConeTwistJoint3D.PARAM_BIAS,.6)
+		neck.set_param(ConeTwistJoint3D.PARAM_SOFTNESS,.8)
+		neck.set_param(ConeTwistJoint3D.PARAM_RELAXATION,1.0)
+		neck.solver_priority = 1
+		joints.append(neck)
+		return
 	var joint := PinJoint3D.new()
 	get_parent().add_child(joint)
 	joint.global_position = at

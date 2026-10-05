@@ -624,7 +624,7 @@ func _physics_process(delta: float) -> void:
 			skater.global_transform=contact.transform
 			for index in previous_proxies.size():
 				var key: String=previous_proxies[index].id
-				skater.visuals[key].transform=previous_proxies[index].local_transform.interpolate_with(proposed_proxies[index].local_transform,fraction)
+				skater.visuals[key].transform=previous_proxies[index].part_transform.interpolate_with(proposed_proxies[index].part_transform,fraction)
 			for key in previous_anchors:
 				skater.pose_anchors[key]=previous_anchors[key].lerp(skater.pose_anchors[key],fraction)
 			var prop: CrashProp=contact.collider

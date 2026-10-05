@@ -6,6 +6,7 @@ var cooldown: float = 0.0
 var limb_name: String
 var previous_linear_velocity: Vector3 = Vector3.ZERO
 var previous_angular_velocity: Vector3 = Vector3.ZERO
+var use_assembly_envelope: bool = false
 func _ready() -> void:
 	set_meta("rider", true)
 	collision_layer = 4
@@ -24,10 +25,14 @@ func _physics_process(delta: float) -> void:
 	cooldown = maxf(0.0, cooldown - delta)
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	if is_instance_valid(game) and not game.is_live(): return
 	# Arcade energy ceiling keeps overlapping drum blasts in the playable crash zone.
-	state.linear_velocity=state.linear_velocity.limit_length(36.0)
-	state.linear_velocity.y=clampf(state.linear_velocity.y,-24.0,9.0)
-	state.angular_velocity=state.angular_velocity.limit_length(18.0)
+	# Connected anatomy receives one common correction from its Skater; changing
+	# every constrained body independently discards unequal joint impulses.
+	if not use_assembly_envelope:
+		state.linear_velocity=state.linear_velocity.limit_length(36.0)
+		state.linear_velocity.y=clampf(state.linear_velocity.y,-24.0,9.0)
+		state.angular_velocity=state.angular_velocity.limit_length(18.0)
 	var incoming_velocity: Vector3 = previous_linear_velocity
 	var incoming_spin: Vector3 = previous_angular_velocity
 	previous_linear_velocity = state.linear_velocity
@@ -40,7 +45,9 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		# "Local" identifies this body, not a body-space coordinate. Contacts
 		# and normals from the solver are already expressed in world space.
 		var normal: Vector3 = state.get_contact_local_normal(i).normalized()
-		var contact_offset: Vector3 = state.get_contact_local_position(i) - state.transform.origin
+		# Linear velocity belongs to the center of mass. Its offset is already in
+		# world axes, including fitted collider offsets and custom shin COM.
+		var contact_offset: Vector3 = state.get_contact_local_position(i) - state.transform.origin - state.center_of_mass
 		var relative_velocity: Vector3 = incoming_velocity + incoming_spin.cross(contact_offset) - state.get_contact_collider_velocity_at_position(i)
 		var closing_speed: float = maxf(0.0, -relative_velocity.dot(normal))
 		# Support impulses and friction on a resting body are not fresh injuries.

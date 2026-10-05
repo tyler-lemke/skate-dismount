@@ -16,8 +16,10 @@ A runtime-only run rejects changes to its existing import cache.
 The build method is explicitly `runtime_pckpacker/from_existing_import_cache` and
 `clean_import_verified=false`. It never requests editor initialization, import, or
 export and does not reclassify the separately failed sandbox editor import as a
-pass. An optional `--import-result` records the existing actual editor outcome and
-its result-file digest. The ObjectDB `user://` write failure remains a separate
+pass. An optional `--import-result` records the existing actual editor outcome,
+its result-file digest, and its original log digest. Historical reports without
+the newer top-level status field are read through their actual nested import
+outcome and original strict log; the original report is never rewritten. The ObjectDB `user://` write failure remains a separate
 environmental limitation. Neither HOME nor the installed engine is modified.
 
 The builder hashes canonical sorted authored/runtime/packaging inputs, import
@@ -49,6 +51,10 @@ requiring exact staged input inventory and excluding tests/docs/tools/Blender,
 builds, repair records, beads, and private roots. It extracts with ditto into a
 fresh path containing spaces, compares every extracted app file/mode, verifies
 deep strict signatures, and checks actual architecture/minimum OS metadata.
+Verification binds the output manifest's source/cache/engine inventories back to
+the embedded canonical identity and derives the expected PCK files from that
+identity. Refreshing output hashes cannot retain an old source build ID for
+changed packed inputs.
 
 ## Public CLI and deferred actual checks
 
@@ -83,6 +89,10 @@ Manifest statuses distinguish archive-only completion from headless runtime and
 isolated storage completion. `r13_acceptance_complete` remains false for root's
 final gate; native presentation/input/render/audio/performance, both-CPU execution,
 oldest-OS execution, and quarantined launch remain explicitly unverified.
+Each runtime recheck first revokes the current runtime/storage success labels,
+keeps the previous summary as history, and gives actual bounded logs unique check
+IDs. A failed recheck records the actual current failure and cannot retain the
+previous passing validation scope.
 
 ## Actual preparation evidence
 
@@ -91,8 +101,8 @@ oldest-OS execution, and quarantined launch remain explicitly unverified.
   This includes strict default import failure versus explicit runtime-only labels,
   mandatory registry extensions, exact certificate adjacency, diagnostic failures,
   early/wrong/missing/duplicate summaries, bounded hangs and descendant cleanup.
-- Candidate verifier controls: 22 tests passed, artifacts at
-  `builds/candidate_controls/20261005T025631.019933Z-bb074d09/result.json`.
+- Candidate verifier controls: 25 tests passed, artifacts at
+  `builds/candidate_controls/20261005T033231.529485Z-8df9378e/result.json`.
   Real disposable archive controls reject CRC corruption, stale archive/app bytes,
   missing/extra runtime members, traversal/absolute/backslash paths, symlinks,
   duplicate members, external manifest ZIP digest changes, wrong supplied candidate
@@ -104,6 +114,17 @@ oldest-OS execution, and quarantined launch remain explicitly unverified.
   command, excluding unrelated source/dylinker version fields: arm64 minimum11.0
   and x86_64 minimum10.13, declared maximum11.0. Valid AppleDouble metadata and
   invalid opaque metadata are also exercised with actual disposable ZIPs.
+  The original strict failed-import report at
+  `builds/test_runs/20261005T021641.874148Z-5053-b6376428/result.json` is read as a
+  failed historical import with its exact diagnostics. Its SHA remains
+  `5ac963538f21b0811fec83f8caa6f8a44021112dfc2f44d51e4ec788f703c533`;
+  a disposable falsely labelled passing import is rejected.
+  A disposable copy of the actual runtime PCK smoke output is changed and its
+  internal MD5/output manifest hashes repaired; verification still rejects its
+  disagreement with the original embedded canonical source identity. A real CLI
+  repeat check of a disposable hanging child times out and removes previous
+  passing runtime/storage labels while preserving the old summary. These remain
+  verifier controls, never packaged-game evidence.
 - Actual runtime PCKPacker smoke with installed Godot 4.7.2: `PACK: 284 checks,
   0 failures`, 141 staged entries independently verified in an ordinary format-4
   PCK. Artifacts at

@@ -19,8 +19,16 @@ func live_state(game: Node) -> Dictionary:
 	var limbs: Dictionary={}
 	for key in game.skater.body_parts:
 		var body=game.skater.body_parts[key]
-		limbs[key]={"frame":body.global_transform,"linear":body.linear_velocity,"angular":body.angular_velocity,"cooldown":body.cooldown}
-	return {"props":props,"limbs":limbs,"damage":game.skater.damage_states.duplicate(),"score":game.rules.score,"fund":game.fund_total(),"events":game.claim_events.duplicate(true),"edges":game.traffic_edges.duplicate(true),"records":FileAccess.get_file_as_bytes(fixture.records_path)}
+		var exceptions: Array[int]=[]
+		# The engine's typed exclusion array can contain ownerless entries.
+		# Retain their count alongside every observable owner, without dereferencing null.
+		for excluded in body.get_collision_exceptions(): exceptions.append(excluded.get_instance_id() if is_instance_valid(excluded) else 0)
+		exceptions.sort()
+		limbs[key]={"frame":body.global_transform,"linear":body.linear_velocity,"angular":body.angular_velocity,"previous_linear":body.previous_linear_velocity,"previous_angular":body.previous_angular_velocity,"cooldown":body.cooldown,"collision_layer":body.collision_layer,"collision_mask":body.collision_mask,"collision_exceptions":exceptions,"assembly_envelope":body.use_assembly_envelope}
+	var gates: Array[Dictionary]=[]
+	for gate in game.skater.collision_gates:
+		gates.append({"first":str(gate.first.get_meta("stable_id","")),"second":str(gate.second.get_meta("stable_id","")),"waiting":gate.waiting,"query_transform":gate.query.transform,"query_mask":gate.query.collision_mask,"shape_transform":gate.shape.transform})
+	return {"props":props,"limbs":limbs,"collision_gates":gates,"damage":game.skater.damage_states.duplicate(),"score":game.rules.score,"fund":game.fund_total(),"events":game.claim_events.duplicate(true),"edges":game.traffic_edges.duplicate(true),"records":FileAccess.get_file_as_bytes(fixture.records_path)}
 func compare_state(actual: Dictionary, expected: Dictionary) -> bool:
 	for key in expected:
 		if actual[key]!=expected[key]:

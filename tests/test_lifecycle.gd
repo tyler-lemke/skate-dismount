@@ -7,8 +7,13 @@ var failures := 0
 var game: Node3D
 var replacements: Array[Dictionary] = []
 var taxi_cases: Array[Dictionary] = []
-const SIZES := {"torso":Vector3(.64,.68,.40),"pelvis":Vector3(.52,.28,.38),
-	"head":Vector3(.44,.48,.42),"board":Vector3(.76,.18,1.65)}
+var collider_geometry: Array[Dictionary] = []
+# Independent published physical contract, checked against real spawned shapes.
+# The torso box encloses its final convex rings and is conservative for clearance.
+const SIZES := {"torso":Vector3(.68,.70,.44),"pelvis":Vector3(.52,.28,.38),
+	"head":Vector3(.44,.48,.42),"board":Vector3(.76,.18,1.65),
+	"fore_l":Vector3(.28,.44,.30),"fore_r":Vector3(.28,.44,.30)}
+const OFFSETS := {"torso":Vector3(0,.04,0),"fore_l":Vector3(0,-.03,0),"fore_r":Vector3(0,-.03,0)}
 
 func _initialize() -> void:
 	call_deferred("run")
@@ -38,6 +43,46 @@ func settle_frees() -> void:
 	await process_frame
 	await physics_frame
 
+func validate_physical_shapes() -> void:
+	for key in game.skater.body_parts:
+		var body: RigidBody3D = game.skater.body_parts[key]
+		var shapes: Array[CollisionShape3D] = []
+		for child in body.get_children():
+			if child is CollisionShape3D: shapes.append(child)
+		check(shapes.size() == 1,"independent hull oracle finds exactly one actual physical shape for "+str(key))
+		if shapes.size() != 1: continue
+		var shape: CollisionShape3D = shapes[0]
+		var expected_size: Vector3 = SIZES.get(key,Vector3(.21,.35,.24))
+		var expected_offset: Vector3 = OFFSETS.get(key,Vector3.ZERO)
+		if key == "torso":
+			check(shape.shape is ConvexPolygonShape3D,"published torso uses its actual convex physical hull")
+			if not shape.shape is ConvexPolygonShape3D: continue
+			var convex: ConvexPolygonShape3D = shape.shape
+			var points: PackedVector3Array = convex.points
+			check(points.size() == 16,"actual torso has exactly the sixteen published ring vertices")
+			var literals := PackedVector3Array()
+			for ring in 2:
+				for i in 8:
+					var angle := float(i)*TAU/8.0
+					var literal := Vector3((.24 if ring == 0 else .34)*cos(angle),-.35 if ring == 0 else .35,
+						(.18 if ring == 0 else .22)*sin(angle))
+					literals.append(literal)
+					var matched := false
+					for actual in points:
+						if actual.distance_to(literal) <= .000001: matched = true
+					check(matched,"actual torso includes independent published ring%d vertex%d" % [ring,i])
+			collider_geometry.append({"part":str(key),"actual_shape":"convex","actual_points":points,
+				"literal_points":literals,"conservative_box_size":expected_size,"literal_offset":expected_offset})
+		else:
+			check(shape.shape is BoxShape3D,"independent hull oracle verifies actual BoxShape3D for "+str(key))
+			if not shape.shape is BoxShape3D: continue
+			var box: BoxShape3D = shape.shape
+			check(box.size.is_equal_approx(expected_size),"published literal hull dimensions match actual physical part "+str(key))
+			collider_geometry.append({"part":str(key),"actual_shape":"box","actual_size":box.size,
+				"literal_size":expected_size,"literal_offset":expected_offset})
+		check(shape.transform.is_equal_approx(Transform3D(Basis.IDENTITY,expected_offset)),"published literal hull offset matches actual physical part "+str(key))
+		collider_geometry.back()["actual_local_transform"] = shape.transform
+
 func replacement_matrix() -> void:
 	var route_baselines := {}
 	for iteration in 20:
@@ -53,6 +98,7 @@ func replacement_matrix() -> void:
 		game.charge = .75
 		game.launch()
 		game.bail_out()
+		if iteration == 0: validate_physical_shapes()
 		for tick in 5: await physics_frame
 		game.finish_run("manual")
 		check(game.phase == game.Phase.RESULTS and game.replay_timeline.can_play(), "replacement%d seals real spawned body/timestamp tape" % iteration)
@@ -101,14 +147,15 @@ func taxi_bounds(taxi: CrashProp) -> AABB:
 	return AABB()
 
 func left_clearance(taxi: CrashProp) -> float:
-	# Independent world-space bounds from literal physical part sizes and actual
+	# Independent world-space bounds from literal physical sizes/offsets and actual
 	# riding transforms. No contact helper, radius heuristic, or production proxy.
 	var hull := taxi_bounds(taxi)
 	var minimum := INF
 	for key in game.skater.visuals:
 		var part: Node3D = game.skater.visuals[key]
 		var size: Vector3 = SIZES.get(key,Vector3(.21,.35,.24))
-		var bounds := box_bounds(part.global_transform,size)
+		var offset: Vector3 = OFFSETS.get(key,Vector3.ZERO)
+		var bounds := box_bounds(part.global_transform * Transform3D(Basis.IDENTITY,offset),size)
 		minimum = minf(minimum,hull.position.x - bounds.end.x)
 	return minimum
 
@@ -179,7 +226,7 @@ func run() -> void:
 		await authored_taxi(seed_value,false)
 		await authored_taxi(seed_value,true)
 	var report := {"scope":"actual scene/physics lifecycle and authored taxi fixtures; headless counts do not establish native audio",
-		"engine":Engine.get_version_info(),"replacements":replacements,"taxi_cases":taxi_cases}
+		"engine":Engine.get_version_info(),"collider_geometry":collider_geometry,"replacements":replacements,"taxi_cases":taxi_cases}
 	var file := FileAccess.open(fixture.artifact_path("lifecycle.json"),FileAccess.WRITE)
 	check(file != null,"lifecycle telemetry opens inside selected suite directory")
 	if file != null:

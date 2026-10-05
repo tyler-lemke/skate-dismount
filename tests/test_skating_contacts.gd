@@ -71,17 +71,68 @@ func compare_case(label: String, a: Transform3D, b: Transform3D, proxies: Array,
 		check(hit.at.is_finite() and hit.normal.is_finite(),label+" finite world contact")
 		check(hit.error_bound <= .002,label+" refined geometry error below two millimeters")
 		if first >= 0.0:
-			var length: float = a.origin.distance_to(b.origin) + proxies[0].shape.size.length() * .5 * a.basis.get_rotation_quaternion().angle_to(b.basis.get_rotation_quaternion())
+			var corner_radius: float = 0.0
+			if proxies[0].shape is BoxShape3D: corner_radius=proxies[0].shape.size.length()*.5
+			elif proxies[0].shape is ConvexPolygonShape3D:
+				for point in proxies[0].shape.points: corner_radius=maxf(corner_radius,point.length())
+			corner_radius+=proxies[0].local_transform.origin.length()
+			var length: float = a.origin.distance_to(b.origin) + corner_radius * a.basis.get_rotation_quaternion().angle_to(b.basis.get_rotation_quaternion())
 			var error: float = absf(hit.fraction - first) * length
 			case.contact_error_m = error
 			check(error <= .002 + length / subdivisions,label+" earliest placement bracketed by fine independent samples")
 	cases.append(case)
 	return hit
 
+func independent_torso_hull() -> Array[Dictionary]:
+	var hull := ConvexPolygonShape3D.new()
+	var points := PackedVector3Array()
+	for ring in 2:
+		for index in 8:
+			var angle: float = float(index)*TAU/8.0
+			points.append(Vector3((.24 if ring==0 else .34)*cos(angle),-.35 if ring==0 else .35,(.18 if ring==0 else .22)*sin(angle)))
+	hull.points=points
+	return [{"id":"independent_torso","shape":hull,"local_transform":Transform3D(Basis.IDENTITY,Vector3(0,.04,0))}]
+
 func clear_arena() -> void:
 	for child in arena.get_children(): child.queue_free()
 	await process_frame
 	await physics_frame
+
+func animated_offset_case() -> void:
+	var target: CrashProp = prop_at("AnimatedForearmOffset",Vector3(.008,.008,.008),Vector3(0,-.247,0))
+	await physics_frame
+	var box := BoxShape3D.new()
+	box.size = Vector3(.28,.44,.30)
+	box.margin = .00001
+	var from_part := Transform3D(Basis(Vector3.BACK,-PI*.5),Vector3.ZERO)
+	var to_part := Transform3D(Basis(Vector3.BACK,PI*.5),Vector3.ZERO)
+	var offset := Transform3D(Basis.IDENTITY,Vector3(0,-.03,0))
+	var from_proxy: Dictionary = {"id":"forearm","shape":box,"part_transform":from_part,"collision_offset":offset,"local_transform":from_part*offset}
+	var to_proxy: Dictionary = {"id":"forearm","shape":box,"part_transform":to_part,"collision_offset":offset,"local_transform":to_part*offset}
+	var space: PhysicsDirectSpaceState3D = arena.get_world_3d().direct_space_state
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = box
+	query.collision_mask = 2
+	query.margin = 0.0
+	var first: float = -1.0
+	var steps: int = 8192
+	# A dense sequence of actual narrow-phase orientations is independent of
+	# the helper's angular candidate bounds and recursion. The endpoints clear;
+	# the fitted forearm's offset rotates through this small physical obstacle.
+	for index in steps+1:
+		var fraction: float = float(index)/steps
+		query.transform = from_part.interpolate_with(to_part,fraction)*offset
+		if not space.intersect_shape(query,4).is_empty(): first=fraction; break
+	check(first>0.0 and first<.5,"offset forearm has a real intermediate animated contact")
+	var hit: Dictionary = helper.find_obstruction(space,Transform3D.IDENTITY,Transform3D.IDENTITY,[from_proxy],[target],[to_proxy])
+	check(not hit.is_empty(),"animated offset query finds the actual rotating forearm")
+	if not hit.is_empty():
+		var radius: float = offset.origin.length()+box.size.length()*.5
+		var error: float = absf(hit.fraction-first)*PI*radius
+		check(error<=.002+PI*radius/steps,"animated offset accepts the independently bracketed first contact within two millimeters")
+		query.transform = from_part.interpolate_with(to_part,hit.fraction)*offset
+		check(not space.intersect_shape(query,4).is_empty(),"accepted anatomical frame plus fixed offset is an actual physical contact")
+		cases.append({"name":"animated forearm offset","oracle_first":first,"fraction":hit.fraction,"contact_error_m":error,"query_count":helper.query_count})
 
 func run() -> void:
 	arena = Node3D.new()
@@ -132,9 +183,20 @@ func run() -> void:
 	await physics_frame
 	compare_case("positive clearance turn",turn_a,turn_b,needle,[graze],false,8192)
 	await clear_arena()
+	await animated_offset_case()
+	await clear_arena()
+	var torso_hull: Array=independent_torso_hull()
+	var hull_target: CrashProp=prop_at("ConvexTurnContact",Vector3(.04,.4,.04),Vector3(0,1,0))
+	await physics_frame
+	compare_case("actual tapered convex turn",Transform3D(Basis(Vector3.UP,-.25),Vector3(-1,1,0)),Transform3D(Basis(Vector3.UP,.25),Vector3(1,1,0)),torso_hull,[hull_target],true)
+	compare_case("neighboring clear convex turn",Transform3D(Basis(Vector3.UP,-.25),Vector3(-1,1,.28)),Transform3D(Basis(Vector3.UP,.25),Vector3(1,1,.28)),torso_hull,[hull_target],false)
+	await clear_arena()
 	game = fixtures.create_game(root)
 	if game == null: return
 	for pose in 3:
+		game._replace_route(0)
+		await process_frame
+		await physics_frame
 		game.skater.set_pose(pose)
 		var captured: Array = helper.capture_proxies(game.skater)
 		check(captured.size() == 12,"pose %d caches all physical parts including board" % pose)
@@ -144,6 +206,21 @@ func run() -> void:
 		for proxy in captured:
 			if proxy.id in ["arm_l","arm_r","fore_l","fore_r"]: furthest_arm = maxf(furthest_arm,absf(proxy.local_transform.origin.x))
 		check(furthest_arm > (.80 if pose == 1 else .25),"pose %d proxies follow actual selected silhouette" % pose)
+		# Compare the skating query contract with actual spawned physical hulls.
+		# Collider offsets must move the query without moving the captured
+		# anatomical frame that owns the skin and joint handoff.
+		var root_frame: Transform3D = game.skater.global_transform
+		game.skater.bail(Vector3.ZERO,0.0)
+		for proxy in captured:
+			var body: RigidBody3D = game.skater.body_parts[proxy.id]
+			body.freeze = true
+			var physical: CollisionShape3D = body.get_child(0)
+			var same_shape: bool = false
+			if proxy.shape is BoxShape3D and physical.shape is BoxShape3D: same_shape=proxy.shape.size.is_equal_approx(physical.shape.size)
+			elif proxy.shape is ConvexPolygonShape3D and physical.shape is ConvexPolygonShape3D: same_shape=proxy.shape.points==physical.shape.points
+			check(same_shape,"pose %d %s skating hull matches actual physical geometry" % [pose,proxy.id])
+			check((root_frame * proxy.part_transform).is_equal_approx(body.global_transform),"pose %d %s anatomical handoff excludes collider offset" % [pose,proxy.id])
+			check((root_frame * proxy.local_transform).is_equal_approx(body.global_transform * physical.transform),"pose %d %s query includes actual physical collider offset" % [pose,proxy.id])
 	# Use the authored real route treads as the oracle, with root-center downward
 	# rays. Samples avoid exact shared edges where either adjacent face is valid.
 	for route in 3:

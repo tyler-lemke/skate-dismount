@@ -380,6 +380,15 @@ def verify_outputs(directory, report):
     require(sha256(archive) == report["zip"]["sha256"] and archive.stat().st_size == report["zip"]["bytes"],
             "ZIP digest/size differs from candidate manifest")
     validate_app(app, report["build_id"], report["engine"], expected_map=report["app_file_map"])
+    embedded = json.loads((app / "Contents/Resources/build_identity.json").read_text(encoding="utf-8"))["identity"]
+    require(report.get("identity") == embedded, "manifest source/engine identity differs from embedded candidate")
+    require(report.get("input_inventory") == embedded["source_inputs"] and
+            report.get("existing_import_cache") == embedded["existing_import_cache"],
+            "manifest input inventory differs from canonical source/cache identity")
+    require({key: value for key, value in report["engine"].items() if key != "path"} == embedded["engine"],
+            "manifest engine metadata differs from canonical engine identity")
+    canonical_pack = packed_inputs(embedded["source_inputs"], embedded["existing_import_cache"])
+    require(report["packed_inputs"] == canonical_pack, "manifest packed inventory differs from canonical source/cache identity")
     pck = app / "Contents/MacOS/StairWreck.pck"
     require(sha256(pck) == report["pck"]["sha256"], "PCK digest differs from candidate manifest")
     pck_report = verify_pck(pck, report["packed_inputs"])
@@ -524,21 +533,49 @@ def build(args):
 
 
 def check_runtime(directory, report, timeout):
+    previous = {key: report[key] for key in ("runtime_check_id", "packaged_runtime_status", "normal_packaged_persistence",
+                "packaged_routes", "external_asset_probe", "normal_records_probe", "validation_scope", "error") if key in report}
+    if "runtime_check_id" in previous:
+        report.setdefault("runtime_check_history", []).append(previous)
+    check_id = uuid.uuid4().hex[:8]
+    for key in ("packaged_routes", "external_asset_probe", "normal_records_probe", "error"):
+        report.pop(key, None)
+    report.update({"success": False, "runtime_check_id": check_id, "candidate_status": "candidate_runtime_checks_running",
+                   "archive_verified": False, "packaged_runtime_status": "not_run", "normal_packaged_persistence": "not_run",
+                   "validation_scope": "candidate_runtime_revalidation_pending"})
+    run_bounded.write_json(directory / "manifest.json", report)
+    try:
+        _check_runtime(directory, report, timeout, check_id)
+    except (CandidateError, OSError, ValueError, KeyError) as exc:
+        if report["packaged_runtime_status"] == "running":
+            report["packaged_runtime_status"] = "failed"
+        if report["normal_packaged_persistence"] == "running":
+            report["normal_packaged_persistence"] = "failed"
+        report.update({"success": False, "candidate_status": "candidate_runtime_checks_failed", "error": str(exc)})
+        run_bounded.write_json(directory / "manifest.json", report)
+        raise
+    report["success"] = True
+    run_bounded.write_json(directory / "manifest.json", report)
+
+
+def _check_runtime(directory, report, timeout, check_id):
     verify_outputs(directory, report)
     app = Path(report["extracted_app"])
     validate_app(app, report["build_id"], report["engine"], expected_map=report["app_file_map"])
-    check_root = directory / ("packaged checks " + uuid.uuid4().hex[:8])
+    report.update({"archive_verified": True, "validation_scope": "candidate_archive_integrity_only"})
+    check_root = directory / ("packaged checks " + check_id)
     cwd = check_root / "unrelated empty cwd"
     cwd.mkdir(parents=True, exist_ok=False)
     executable = app / "Contents/MacOS/StairWreck"
     expected_tools = {entry["path"]: entry["sha256"] for entry in report["input_inventory"]}
     for script in ("tools/package_assets_probe.gd", "tools/packaged_records_probe.gd"):
         require(sha256(PROJECT / script) == expected_tools.get(script), f"external packaged probe changed since candidate identity: {script}")
+    report["packaged_runtime_status"] = "running"
     results = []
     for level in range(3):
         case = check_root / ("level" + str(level))
         case.mkdir()
-        output = run_check(report, "packaged_level" + str(level), [str(executable), "--headless", "--fixed-fps", "60",
+        output = run_check(report, check_id + "_packaged_level" + str(level), [str(executable), "--headless", "--fixed-fps", "60",
                            "--log-file", str(case / "engine.log"), "--", "--self-check", "--level=" + str(level),
                            "--records-path=" + str(case / "records.json")], directory, timeout, cwd=cwd)
         lines = [line.strip() for line in output.splitlines() if line.strip().startswith("SELF_CHECK:")]
@@ -549,7 +586,7 @@ def check_runtime(directory, report, timeout):
                 int(fields.get("frames", "0")) > 0, f"packaged level {level} lacks score/wreck/completion evidence")
         results.append({"requested_level": level, "marker": lines[0], "fields": fields, "records_path": str(case / "records.json")})
     probe = PROJECT / "tools/package_assets_probe.gd"
-    output = run_check(report, "external_packaged_assets_probe", [str(executable), "--headless", "--script", str(probe),
+    output = run_check(report, check_id + "_external_packaged_assets_probe", [str(executable), "--headless", "--script", str(probe),
                        "--log-file", str(check_root / "assets.engine.log")], directory, timeout, cwd=cwd)
     markers = [line.strip() for line in output.splitlines() if line.strip().startswith("PACKAGED_ASSETS:")]
     require(markers == ["PACKAGED_ASSETS: 19 models / 15 audio; 0 failures"], "external packaged asset probe did not satisfy model/audio contracts")
@@ -559,10 +596,11 @@ def check_runtime(directory, report, timeout):
                   "packaged_runtime_status": "passed", "candidate_status": "candidate_runtime_verified_persistence_pending"})
     report["validation_scope"] = "candidate_archive_and_headless_runtime_only"
     run_bounded.write_json(directory / "manifest.json", report)
-    check_records(directory, report, timeout, executable, check_root, cwd)
+    report["normal_packaged_persistence"] = "running"
+    check_records(directory, report, timeout, executable, check_root, cwd, check_id)
 
 
-def check_records(directory, report, timeout, executable, check_root, cwd):
+def check_records(directory, report, timeout, executable, check_root, cwd, check_id):
     probe = PROJECT / "tools/packaged_records_probe.gd"
     storage = check_root / "normal isolated records"
     storage.mkdir()
@@ -578,7 +616,7 @@ def check_records(directory, report, timeout, executable, check_root, cwd):
                           ("migrate", migration), ("verify-migrate", migration), ("unsupported", unsupported)):
         case_dir = storage / ("logs " + case)
         case_dir.mkdir()
-        output = run_check(report, "external_packaged_records_" + case,
+        output = run_check(report, check_id + "_external_packaged_records_" + case,
                            [str(executable), "--headless", "--fixed-fps", "60", "--script", str(probe),
                             "--log-file", str(case_dir / "engine.log"), "--", "--probe-case=" + case,
                             "--records-path=" + str(records)], directory, timeout, expected="PACKAGED_RECORDS", cwd=cwd)
@@ -632,8 +670,8 @@ def main(argv=None):
     try:
         report = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
         require(report.get("candidate_directory") == str(directory), "manifest identifies a different candidate path")
-        verify_outputs(directory, report)
         if args.command == "verify":
+            verify_outputs(directory, report)
             extract_and_verify(directory, report, args.timeout_seconds)
         else:
             check_runtime(directory, report, args.timeout_seconds)

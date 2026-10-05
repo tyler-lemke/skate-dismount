@@ -8,130 +8,30 @@ var failures: int = 0
 var game: Node3D
 var immediate_cases: Array[Dictionary] = []
 var normal_cases: Array[Dictionary] = []
-var collision_experiment: bool = false
-var collision_gates: Array[Dictionary] = []
-var neck_experiment: bool = false
-var fitted_collision_experiment: bool = false
-var probe_no_linear_caps: bool = false
-var probe_no_angular_caps: bool = false
-var immediate_only: bool = false
-var probe_uniform_energy: bool = false
-var probe_fitted_inertia: bool = false
+func gate_observation(rider: Skater, first: String, second: String) -> Dictionary:
+	var a: RagdollLimb = rider.body_parts[first]
+	var b: RagdollLimb = rider.body_parts[second]
+	var result: Dictionary = {"actual_exception":b in a.get_collision_exceptions(),"waiting":false,"first_mask":a.collision_mask,"second_layer":b.collision_layer}
+	for gate in rider.collision_gates:
+		if gate.first == a and gate.second == b: result.waiting = gate.waiting
+	return result
 
-class NeckSkater extends Skater:
-	var limited_neck: bool = true
-	var no_linear_caps: bool = false
-	var no_angular_caps: bool = false
-	var configured_caps: bool = false
-	var uniform_energy: bool = false
-	var fitted_inertia: bool = false
-	var configured_inertia: bool = false
-	func _physics_process(_delta: float) -> void:
-		if not uniform_energy or not ragdoll: return
-		var factor: float = 1.0
-		var min_y: float = INF
-		var max_y: float = -INF
-		for body in limbs:
-			if body.limb_name == "board" or body.freeze: continue
-			factor = minf(factor,minf(36.0/maxf(36.0,body.linear_velocity.length()),18.0/maxf(18.0,body.angular_velocity.length())))
-			min_y = minf(min_y,body.linear_velocity.y)
-			max_y = maxf(max_y,body.linear_velocity.y)
-		if min_y == INF: return
-		factor = minf(factor,33.0/maxf(33.0,max_y-min_y))
-		var vertical: float = clampf(0.0,-24.0-min_y*factor,9.0-max_y*factor)
-		if factor == 1.0 and vertical == 0.0: return
-		for body in limbs:
-			if body.limb_name == "board" or body.freeze: continue
-			body.linear_velocity = body.linear_velocity * factor + Vector3(0,vertical,0)
-			body.angular_velocity *= factor
-	func join(a: RigidBody3D, b: RigidBody3D, at: Vector3) -> void:
-		if fitted_inertia and not configured_inertia:
-			configured_inertia = true
-			# Union of actual imported CPU-skinned left/right shin region bounds
-			# across three launch poses at the deepest pushing stroke. Keep contact
-			# geometry unchanged while testing whether its undersized box inertia
-			# causes the measured knee-pivot stretch.
-			var size := Vector3(.311,.512,.405)
-			for key in ["shin_l","shin_r"]:
-				var body: RagdollLimb = body_parts[key]
-				body.inertia = body.mass / 12.0 * Vector3(size.y*size.y+size.z*size.z,size.x*size.x+size.z*size.z,size.x*size.x+size.y*size.y)
-		if not configured_caps and (no_linear_caps or no_angular_caps):
-			configured_caps = true
-			for body in limbs:
-				var state: Dictionary = {}
-				for key in ["game","cooldown","limb_name","previous_linear_velocity","previous_angular_velocity"]: state[key] = body.get(key)
-				body.set_script(load("res://builds/repair_work/R08/probe_limb_caps.gd"))
-				for key in state: body.set(key,state[key])
-				body.set("probe_clamp_linear",not no_linear_caps or body.limb_name == "board")
-				body.set("probe_clamp_angular",not no_angular_caps or body.limb_name == "board")
-		if not limited_neck or b.limb_name != "head":
-			super.join(a,b,at)
-			return
-		var joint := ConeTwistJoint3D.new()
-		get_parent().add_child(joint)
-		var spine: Basis = bail_frames.torso.basis
-		joint.global_transform = Transform3D(Basis(spine.y,spine.z,spine.x),at)
-		joint.node_a = joint.get_path_to(a)
-		joint.node_b = joint.get_path_to(b)
-		joint.exclude_nodes_from_collision = true
-		joint.set_param(ConeTwistJoint3D.PARAM_SWING_SPAN,deg_to_rad(50.0))
-		joint.set_param(ConeTwistJoint3D.PARAM_TWIST_SPAN,deg_to_rad(65.0))
-		joint.set_param(ConeTwistJoint3D.PARAM_BIAS,.3)
-		joint.set_param(ConeTwistJoint3D.PARAM_SOFTNESS,.8)
-		joint.set_param(ConeTwistJoint3D.PARAM_RELAXATION,1.0)
-		joints.append(joint)
-
-func install_collision_experiment(rider: Skater) -> void:
-	collision_gates.clear()
-	if not collision_experiment: return
-	var torso: RagdollLimb = rider.body_parts.torso
-	torso.collision_layer = 4 | 0x20
-	torso.collision_mask = 3 | 0x40
+func initial_self_contacts(rider: Skater) -> Dictionary:
+	var result: Dictionary = {}
 	for key in ["fore_l","fore_r"]:
-		var fore: RagdollLimb = rider.body_parts[key]
-		fore.collision_layer = 4 | 0x40
-		fore.collision_mask = 3 | 0x20
-		var shape: CollisionShape3D = fore.get_child(0)
-		if fitted_collision_experiment:
-			shape.shape.size = Vector3(.28,.44,.30)
-			shape.position.y = -.03
+		var body: RagdollLimb = rider.body_parts[key]
+		var shape: CollisionShape3D = body.get_child(0)
 		var query := PhysicsShapeQueryParameters3D.new()
 		query.shape = shape.shape
-		query.transform = fore.global_transform * shape.transform
-		query.margin = .002
+		query.transform = body.global_transform * shape.transform
 		query.collision_mask = 0x20
-		var overlapping: bool = not fore.get_world_3d().direct_space_state.intersect_shape(query,1).is_empty()
-		if overlapping:
-			fore.add_collision_exception_with(torso)
-			torso.add_collision_exception_with(fore)
-		collision_gates.append({"fore":fore,"torso":torso,"shape":shape,"query":query,"waiting":overlapping})
-	if fitted_collision_experiment:
-		var head: RagdollLimb = rider.body_parts.head
-		var pelvis: RagdollLimb = rider.body_parts.pelvis
-		head.collision_layer = 4 | 0x80
-		head.collision_mask = 3 | 0x100
-		pelvis.collision_layer = 4 | 0x100
-		pelvis.collision_mask = 3 | 0x80
-		var shape: CollisionShape3D = head.get_child(0)
-		var query := PhysicsShapeQueryParameters3D.new()
-		query.shape = shape.shape
-		query.transform = head.global_transform * shape.transform
-		query.margin = .002
-		query.collision_mask = 0x100
-		var overlapping: bool = not head.get_world_3d().direct_space_state.intersect_shape(query,1).is_empty()
-		if overlapping:
-			head.add_collision_exception_with(pelvis)
-			pelvis.add_collision_exception_with(head)
-		collision_gates.append({"fore":head,"torso":pelvis,"shape":shape,"query":query,"waiting":overlapping})
-
-func update_collision_experiment() -> void:
-	for gate in collision_gates:
-		if not gate.waiting or not is_instance_valid(gate.fore): continue
-		gate.query.transform = gate.fore.global_transform * gate.shape.transform
-		if gate.fore.get_world_3d().direct_space_state.intersect_shape(gate.query,1).is_empty():
-			gate.fore.remove_collision_exception_with(gate.torso)
-			gate.torso.remove_collision_exception_with(gate.fore)
-			gate.waiting = false
+		query.margin = 0.0
+		var depth: float = convex_box_depth(rider.torso,body)
+		var actual_overlap: bool = not body.get_world_3d().direct_space_state.intersect_shape(query,1).is_empty()
+		check(depth <= .00001 or actual_overlap,"exact independent convex SAT initial overlap agrees with real query")
+		check(not rider.torso in body.get_collision_exceptions() and body.collision_mask & rider.torso.collision_layer != 0 and rider.torso.collision_mask & body.collision_layer != 0,"selective forearm/torso contacts are enabled at physical handoff")
+		result[key] = {"convex_initial_depth":depth,"actual_shape_overlap":actual_overlap,"actual_exception":rider.torso in body.get_collision_exceptions()}
+	return result
 
 func check(ok: bool, message: String) -> void:
 	checks += 1
@@ -235,9 +135,51 @@ func finite_rig(rider: Skater) -> bool:
 		if not limb.global_transform.origin.is_finite() or not limb.global_basis.x.is_finite() or not limb.global_basis.y.is_finite() or not limb.global_basis.z.is_finite() or not limb.linear_velocity.is_finite() or not limb.angular_velocity.is_finite(): return false
 	return true
 
+func energy_counterexamples() -> void:
+	# Analytical counterexample: satisfying Y by a common +9 translation turns
+	# (36,0,0) into speed37.108 unless the final vector envelope is rechecked.
+	var cases: Array[Dictionary] = [
+		{"v":[Vector3(36,0,0),Vector3(0,-33,0)],"w":[Vector3.ZERO,Vector3.ZERO]},
+		{"v":[Vector3(30,15,0),Vector3(-27,-30,0)],"w":[Vector3(0,30,0),Vector3(10,0,0)]}
+	]
+	for fixture in cases:
+		var group := Node3D.new()
+		root.add_child(group)
+		var rider := Skater.new()
+		group.add_child(rider)
+		rider.set_process(false)
+		rider.set_physics_process(false)
+		rider.ragdoll = true
+		for index in 3:
+			var body := RagdollLimb.new()
+			body.limb_name = "board" if index == 2 else ("torso" if index == 0 else "head")
+			group.add_child(body)
+			body.linear_velocity = Vector3(100,50,0) if index == 2 else fixture.v[index]
+			body.angular_velocity = Vector3(0,50,0) if index == 2 else fixture.w[index]
+			body.previous_linear_velocity = body.linear_velocity + Vector3(2,-3,4)
+			body.previous_angular_velocity = body.angular_velocity + Vector3(.4,.2,.1)
+			rider.limbs.append(body)
+		var board: RagdollLimb = rider.limbs[2]
+		var board_v: Vector3 = board.linear_velocity
+		var board_w: Vector3 = board.angular_velocity
+		var board_history: Vector3 = board.previous_linear_velocity
+		rider.apply_assembly_energy_envelope()
+		var factor: float = rider.limbs[0].linear_velocity.x/fixture.v[0].x if fixture.w[0].length() == 0.0 else rider.limbs[0].angular_velocity.length()/fixture.w[0].length()
+		var translation: Vector3 = rider.limbs[0].linear_velocity-fixture.v[0]*factor
+		check(factor >= 0.0 and factor <= 1.0 and absf(translation.x)+absf(translation.z) < .0001,"energy envelope uses one common factor and vertical translation")
+		for index in 2:
+			var body: RagdollLimb = rider.limbs[index]
+			check(body.linear_velocity.length() <= 36.0001 and body.linear_velocity.y >= -24.0001 and body.linear_velocity.y <= 9.0001 and body.angular_velocity.length() <= 18.0001,"joint-preserving envelope jointly satisfies speed/Y/spin limits")
+			check(body.linear_velocity.distance_to(fixture.v[index]*factor+translation) < .0001 and body.angular_velocity.distance_to(fixture.w[index]*factor) < .0001,"every anatomical velocity receives identical affine correction")
+			check(body.previous_linear_velocity.distance_to((fixture.v[index]+Vector3(2,-3,4))*factor+translation) < .0001 and body.previous_angular_velocity.distance_to((fixture.w[index]+Vector3(.4,.2,.1))*factor) < .0001,"energy correction transforms the actual incoming-velocity history identically")
+		check(board.linear_velocity == board_v and board.angular_velocity == board_w and board.previous_linear_velocity == board_history,"loose board remains independent of anatomical common envelope")
+		group.free()
+
 func box_depth(a: RagdollLimb, b: RagdollLimb) -> float:
-	var sa: BoxShape3D = a.get_child(0).shape
-	var sb: BoxShape3D = b.get_child(0).shape
+	var sa: Shape3D = a.get_child(0).shape
+	var sb: Shape3D = b.get_child(0).shape
+	var size_a: Vector3 = shape_bounds_size(sa)
+	var size_b: Vector3 = shape_bounds_size(sb)
 	var frame_a: Transform3D = a.get_child(0).global_transform
 	var frame_b: Transform3D = b.get_child(0).global_transform
 	var axes_a: Array[Vector3] = [frame_a.basis.x,frame_a.basis.y,frame_a.basis.z]
@@ -252,9 +194,69 @@ func box_depth(a: RagdollLimb, b: RagdollLimb) -> float:
 		var radius_a: float = 0.0
 		var radius_b: float = 0.0
 		for index in 3:
-			radius_a += absf(axis.dot(axes_a[index])) * sa.size[index] * .5
-			radius_b += absf(axis.dot(axes_b[index])) * sb.size[index] * .5
+			radius_a += absf(axis.dot(axes_a[index])) * size_a[index] * .5
+			radius_b += absf(axis.dot(axes_b[index])) * size_b[index] * .5
 		var depth: float = radius_a + radius_b - absf((frame_b.origin-frame_a.origin).dot(axis))
+		if depth <= 0.0: return 0.0
+		minimum = minf(minimum,depth)
+	return minimum
+
+func shape_bounds_size(shape: Shape3D) -> Vector3:
+	if shape is BoxShape3D: return shape.size
+	var low := Vector3(INF,INF,INF)
+	var high := Vector3(-INF,-INF,-INF)
+	for point in shape.points:
+		low = low.min(point)
+		high = high.max(point)
+	return high-low
+
+# Independent closed-polyhedron SAT: every supporting plane from all point
+# triples plus every box-edge/point-pair cross product (a superset of hull
+# edges). Nonuniform elliptical taper has triangulated side facets, so quad
+# normals alone are insufficient. This validates actual ring shape
+# starting overlap rather than the intentionally broad coarse box selector.
+func convex_box_depth(core: RagdollLimb, box: RagdollLimb) -> float:
+	var shape: ConvexPolygonShape3D = core.get_child(0).shape
+	var core_frame: Transform3D = core.get_child(0).global_transform
+	var box_frame: Transform3D = box.get_child(0).global_transform
+	var size: Vector3 = box.get_child(0).shape.size
+	var points: Array[Vector3] = []
+	for point in shape.points: points.append(core_frame*point)
+	var corners: Array[Vector3] = []
+	for x in [-.5,.5]:
+		for y in [-.5,.5]:
+			for z in [-.5,.5]: corners.append(box_frame*(size*Vector3(x,y,z)))
+	var box_axes: Array[Vector3] = [box_frame.basis.x,box_frame.basis.y,box_frame.basis.z]
+	var axes: Array[Vector3] = box_axes.duplicate()
+	for first in points.size():
+		for second in range(first+1,points.size()):
+			var edge: Vector3 = points[second]-points[first]
+			for axis in box_axes:
+				if edge.cross(axis).length_squared() > .0000001: axes.append(edge.cross(axis).normalized())
+			for third in range(second+1,points.size()):
+				var normal: Vector3 = edge.cross(points[third]-points[first])
+				if normal.length_squared() < .0000001: continue
+				normal = normal.normalized()
+				var positive: bool = false
+				var negative: bool = false
+				for point in points:
+					var distance: float = (point-points[first]).dot(normal)
+					positive = positive or distance > .000001
+					negative = negative or distance < -.000001
+				if not (positive and negative): axes.append(normal)
+	var minimum: float = INF
+	for axis in axes:
+		var aa_min: float = INF
+		var aa_max: float = -INF
+		var bb_min: float = INF
+		var bb_max: float = -INF
+		for point in points:
+			aa_min = minf(aa_min,point.dot(axis))
+			aa_max = maxf(aa_max,point.dot(axis))
+		for point in corners:
+			bb_min = minf(bb_min,point.dot(axis))
+			bb_max = maxf(bb_max,point.dot(axis))
+		var depth: float = minf(aa_max-bb_min,bb_max-aa_min)
 		if depth <= 0.0: return 0.0
 		minimum = minf(minimum,depth)
 	return minimum
@@ -331,13 +333,7 @@ func surface_crossings(regions: Dictionary, first: String, second: String) -> Di
 func immediate_fixture(pose: int, rate: float, stairs: bool, hat: int) -> void:
 	var group := Node3D.new()
 	game.level_root.add_child(group)
-	var rider: Skater = NeckSkater.new() if neck_experiment or probe_no_linear_caps or probe_no_angular_caps or probe_fitted_inertia else Skater.new()
-	if rider is NeckSkater:
-		rider.limited_neck = neck_experiment
-		rider.no_linear_caps = probe_no_linear_caps
-		rider.no_angular_caps = probe_no_angular_caps
-		rider.uniform_energy = probe_uniform_energy
-		rider.fitted_inertia = probe_fitted_inertia
+	var rider := Skater.new()
 	rider.hat_index = hat
 	group.add_child(rider)
 	var z: float = 7.013 if stairs else -8.0
@@ -357,15 +353,16 @@ func immediate_fixture(pose: int, rate: float, stairs: bool, hat: int) -> void:
 	var inspected_vertex_count: int = 0
 	for surface in mesh.mesh.get_surface_count(): imported_vertex_count += mesh.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX].size()
 	for region in before.values(): inspected_vertex_count += region.vertices.size()
-	check(imported_vertex_count == 5973 and imported_vertex_count == inspected_vertex_count,"independent skin oracle covers all5973 imported vertices and every surface")
+	check(imported_vertex_count == 8454 and imported_vertex_count == inspected_vertex_count,"independent skin oracle covers all8454 imported vertices and every surface")
 	var frames: Dictionary = {}
 	var anchors: Dictionary = {}
 	for key in rider.visuals: frames[key] = rider.visuals[key].global_transform
 	for key in rider.pose_anchors: anchors[key] = rider.to_global(rider.pose_anchors[key])
 	var score_before: int = game.rules.score
 	Engine.time_scale = rate
+	check(rider.game == null,"standalone physical fixture has no accounting authority")
 	rider.bail(Vector3(-1.3,-2.2,12.0),.5)
-	install_collision_experiment(rider)
+	var initial_self: Dictionary = initial_self_contacts(rider)
 	check(rider.limbs.size() == 12 and rider.joints.size() == 10,"pose %d rate %.2f physical actor/joint counts" % [pose,rate])
 	check(rider.skin.physics_interpolation_mode == Node.PHYSICS_INTERPOLATION_MODE_OFF,"skin reads interpolated bodies without a second interpolation pass")
 	var physical_error: float = 0.0
@@ -384,6 +381,8 @@ func immediate_fixture(pose: int, rate: float, stairs: bool, hat: int) -> void:
 	check(render_jump < .0001,"new-body interpolation reset preserves first rendered bail geometry")
 	check(rider.body_parts.head.get_node_or_null("RiderModel/CrashHat") != null,"selected hat survives physical handoff")
 	check(rider.body_parts.board.linear_velocity.z > rider.body_parts.torso.linear_velocity.z + 2.9,"independent board retains extra launch momentum")
+	for body in rider.limbs:
+		check(body.use_assembly_envelope == (body.limb_name != "board"),"actual connected anatomy uses the common envelope and board remains independent")
 	var pivots: Array[Dictionary] = pivots_for(rider)
 	var max_anchor: float = 0.0
 	var finite: bool = true
@@ -409,7 +408,6 @@ func immediate_fixture(pose: int, rate: float, stairs: bool, hat: int) -> void:
 	check(not initial_prop_overlap,"direct artificial placement starts outside actual layer2 prop geometry")
 	while elapsed < 1.2 and ticks < 2000:
 		await physics_frame
-		update_collision_experiment()
 		elapsed += rider.get_physics_process_delta_time()
 		ticks += 1
 		max_anchor = maxf(max_anchor,pivot_error(pivots))
@@ -430,7 +428,7 @@ func immediate_fixture(pose: int, rate: float, stairs: bool, hat: int) -> void:
 		for material in materials: healthy = healthy and float(material.get_shader_parameter("severity")) == 0.0
 	check(healthy,"complete healthy snapshot clears every anatomical damage region")
 	check(game.rules.score == score_before,"skin and display-only damage callbacks cannot award payouts")
-	immediate_cases.append({"pose":pose,"rate":rate,"stairs":stairs,"pushing_pose":stairs,"heading":-.16 if stairs else .16,"hat":hat,"body_error":physical_error,"anchor_capture_error":anchor_error,"vertex_discontinuity":jump,"first_render_discontinuity":render_jump,"max_joint_pivot_error":max_anchor,"worst_pivot":worst_pivot,"initial_external_overlaps":initial_overlaps,"simulation_elapsed":elapsed,"physics_ticks":ticks,"finite":finite})
+	immediate_cases.append({"pose":pose,"rate":rate,"stairs":stairs,"pushing_pose":stairs,"heading":-.16 if stairs else .16,"hat":hat,"imported_vertices":imported_vertex_count,"inspected_vertices":inspected_vertex_count,"body_error":physical_error,"anchor_capture_error":anchor_error,"vertex_discontinuity":jump,"first_render_discontinuity":render_jump,"max_joint_pivot_error":max_anchor,"worst_pivot":worst_pivot,"initial_external_overlaps":initial_overlaps,"initial_self_contacts":initial_self,"simulation_elapsed":elapsed,"physics_ticks":ticks,"finite":finite})
 	group.queue_free()
 	await process_frame
 	await process_frame
@@ -440,25 +438,11 @@ func normal_crash(pose: int) -> void:
 	game.set_process(true)
 	game.set_physics_process(true)
 	game._replace_route(0)
+	# Route disposal and new broad-phase insertion complete before launching
+	# the independently controlled attempt. This does not advance live inputs.
+	await process_frame
+	await physics_frame
 	game.start_ready()
-	if neck_experiment or probe_no_linear_caps or probe_no_angular_caps or probe_fitted_inertia:
-		var original: Skater = game.skater
-		var parent: Node = original.get_parent()
-		var captured: Transform3D = original.global_transform
-		var candidate := NeckSkater.new()
-		candidate.limited_neck = neck_experiment
-		candidate.no_linear_caps = probe_no_linear_caps
-		candidate.no_angular_caps = probe_no_angular_caps
-		candidate.uniform_energy = probe_uniform_energy
-		candidate.fitted_inertia = probe_fitted_inertia
-		candidate.game = game
-		candidate.hat_index = original.hat_index
-		parent.add_child(candidate)
-		candidate.global_transform = captured
-		candidate.reset_physics_interpolation()
-		game.skater = candidate
-		parent.remove_child(original)
-		original.free()
 	game.set_pose(pose)
 	game.charge = .75
 	game.launch()
@@ -469,13 +453,16 @@ func normal_crash(pose: int) -> void:
 	check(game.phase == game.Phase.CRASH,"normal pose %d approach produces actual controller bail" % pose)
 	if game.phase != game.Phase.CRASH: return
 	var rider: Skater = game.skater
-	install_collision_experiment(rider)
+	var initial_self: Dictionary = initial_self_contacts(rider)
 	var mesh: MeshInstance3D = hero_mesh(rider)
+	for body in rider.limbs:
+		check(body.use_assembly_envelope == (body.limb_name != "board"),"actual connected anatomy uses the common envelope and board remains independent")
 	var pivots: Array[Dictionary] = pivots_for(rider)
 	var pairs: Array[Array] = [["head","pelvis"],["fore_l","torso"],["fore_r","torso"]]
 	var largest: Dictionary = {}
 	var snapshots: Dictionary = {}
 	var snapshot_times: Dictionary = {}
+	var snapshot_gates: Dictionary = {}
 	rider.sync_skin(false)
 	var initial: Dictionary = skin_regions(mesh,rider.skin.skeleton)
 	var max_angle: float = 0.0
@@ -484,7 +471,6 @@ func normal_crash(pose: int) -> void:
 	var ticks: int = 0
 	while game.phase == game.Phase.CRASH and ticks < 2800:
 		await physics_frame
-		update_collision_experiment()
 		ticks += 1
 		max_anchor = maxf(max_anchor,pivot_error(pivots))
 		finite = finite and finite_rig(rider)
@@ -498,6 +484,7 @@ func normal_crash(pose: int) -> void:
 				for part in rider.body_parts: frames[part] = rider.body_parts[part].global_transform
 				snapshots[key] = frames
 				snapshot_times[key] = game.crash_clock
+				snapshot_gates[key] = gate_observation(rider,pair[0],pair[1])
 	check(finite,"normal crash pose %d stays finite" % pose)
 	check(max_anchor <= .05,"normal crash pose %d world joint pivots remain connected" % pose)
 	# Freeze the completed scene, then reconstruct ONLY the captured display
@@ -524,35 +511,24 @@ func normal_crash(pose: int) -> void:
 		display.sync_skin(false)
 		var regions: Dictionary = skin_regions(hero_mesh(display),display.skin.skeleton)
 		var crossed: Dictionary = surface_crossings(regions,pair[0],pair[1])
+		check(crossed.crossing_triangle_pairs == 0,"selected actual visible triangles do not cross for pose%d %s" % [pose,key])
 		var first_crossed: Dictionary = surface_crossings(initial,pair[0],pair[1])
-		shape_cases[key] = {"coarse_box_max_depth":largest[key],"simulation_time":snapshot_times[key],"initial_visible_crossings":first_crossed.crossing_triangle_pairs,"visible_crossings":crossed.crossing_triangle_pairs,"crossing_examples":crossed.examples}
+		shape_cases[key] = {"coarse_box_max_depth":largest[key],"simulation_time":snapshot_times[key],"collision_gate":snapshot_gates[key],"final_collision_gate":gate_observation(rider,pair[0],pair[1]),"initial_visible_crossings":first_crossed.crossing_triangle_pairs,"visible_crossings":crossed.crossing_triangle_pairs,"crossing_examples":crossed.examples}
 		var geometry := FileAccess.open(fixtures.artifact_path("pose_%d_%s_geometry.json" % [pose,key.replace(":","_")]),FileAccess.WRITE)
 		if geometry != null:
 			geometry.store_string(JSON.stringify({"pose":pose,"time":snapshot_times[key],"pair":key,"regions":export_regions(regions),"crossings":crossed},"\t"))
 			geometry.close()
 		else: check(false,"matched CPU geometry export opens")
-	normal_cases.append({"pose":pose,"run_ticks":run_ticks,"crash_ticks":ticks,"max_joint_pivot_error":max_anchor,"max_head_torso_up_angle_degrees":max_angle,"finite":finite,"shape_inspection":shape_cases})
+	normal_cases.append({"pose":pose,"run_ticks":run_ticks,"crash_ticks":ticks,"max_joint_pivot_error":max_anchor,"max_head_torso_up_angle_degrees":max_angle,"finite":finite,"initial_self_contacts":initial_self,"shape_inspection":shape_cases,"insurance_payout":game.rules.score,"destroyed":game.rules.destroyed,"explosions":game.rules.explosions,"best_combo":game.rules.best_combo})
 	display_group.queue_free()
 	await process_frame
 	await process_frame
 
 func run() -> void:
-	for arg in OS.get_cmdline_user_args():
-		if arg == "--selective-collision-experiment": collision_experiment = true
-		if arg == "--neck-constraint-experiment": neck_experiment = true
-		if arg == "--fitted-collision-experiment":
-			fitted_collision_experiment = true
-			collision_experiment = true
-		if arg == "--probe-no-linear-caps": probe_no_linear_caps = true
-		if arg == "--probe-no-angular-caps": probe_no_angular_caps = true
-		if arg == "--immediate-only": immediate_only = true
-		if arg == "--probe-uniform-energy":
-			probe_uniform_energy = true
-			probe_no_linear_caps = true
-			probe_no_angular_caps = true
-		if arg == "--probe-fitted-inertia": probe_fitted_inertia = true
 	game = fixtures.create_game(root)
 	if game == null: return
+	energy_counterexamples()
+	check(Engine.physics_ticks_per_second == 90 and int(PhysicsServer3D.space_get_param(game.get_world_3d().space,PhysicsServer3D.SPACE_PARAM_SOLVER_ITERATIONS)) == 32,"production uses90Hz and32 coupled contact/joint passes")
 	game.set_process(false)
 	game.set_physics_process(false)
 	var rates: Array[float] = [1.0,.55,.25,.18]
@@ -560,8 +536,7 @@ func run() -> void:
 		for index in rates.size():
 			await immediate_fixture(pose,rates[index],false,(pose+index)%3)
 			await immediate_fixture(pose,rates[index],true,(pose+index)%3)
-	if not immediate_only:
-		for pose in 3: await normal_crash(pose)
+	for pose in 3: await normal_crash(pose)
 	# Fresh route replacement owns a new pose/history. The new body cannot use
 	# interpolated samples from the discarded attempt, even before another tick.
 	Engine.time_scale = 1.0
