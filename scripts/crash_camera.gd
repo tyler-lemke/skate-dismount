@@ -4,7 +4,7 @@ extends RefCounted
 # Mask 3 sees level geometry and wreckable props, but ignores rider bodies (layer 4).
 const WORLD_MASK: int = 3
 const FLOOR_CLEARANCE: float = 1.5
-const LENS_RADIUS: float = .22
+const LENS_RADIUS: float = .26
 const PATH_MARGIN: float = .002
 const SUBJECT_MARGIN: float = .35
 const MAX_SHAKE: float = .6

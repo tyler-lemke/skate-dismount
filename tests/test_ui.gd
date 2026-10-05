@@ -108,6 +108,8 @@ func run() -> void:
 	check(game.hud.boost_label.text=="CRASHBREAKER / SPENT" and game.hud.aim_label.text.contains("CHARGE SPENT"),"spent crashbreaker cannot look ready or recharging")
 	game.replay_sample={"limbs":{"shin_r":45.0}}
 	game.hud.update_game(game.rules,"REPLAY",26,0,0,11,false)
+	check(game.hud.claim_panel.is_visible_in_tree(),"recorded receipts remain visible during replay presentation")
+	check(game.hud.claim_heading.text=="RECORDED RECEIPTS","replay labels receipts as historical presentation")
 	check(game.hud.injury_panel.visible,"injury file remains visible in replay")
 	check(not game.hud.injury_details.visible and game.hud.injury_panel.size.y==230,"replay retains the compact injury display")
 	check(game.hud.hint_label.text=="R retry / C camera\nESC pause" and game.hud.timer_label.text=="REPLAY / ESC PAUSE","replay hints name only available navigation")

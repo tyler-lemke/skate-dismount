@@ -1,26 +1,142 @@
 [
-  {"script": "tests/test_rules.gd", "summary": "RULES", "timeout_seconds": 180},
-  {"script": "tests/test_injuries.gd", "summary": "INJURIES", "timeout_seconds": 180},
-  {"script": "tests/test_inputs.gd", "summary": "INPUTS", "timeout_seconds": 180},
-  {"script": "tests/test_game.gd", "summary": "GAME", "timeout_seconds": 180},
-  {"script": "tests/test_routes.gd", "summary": "ROUTES", "timeout_seconds": 180},
-  {"script": "tests/test_playability.gd", "summary": "PLAYABILITY", "timeout_seconds": 180},
-  {"script": "tests/test_ui.gd", "summary": "UI", "timeout_seconds": 180},
-  {"script": "tests/test_audio.gd", "summary": "AUDIO", "timeout_seconds": 180},
-  {"script": "tests/test_skating.gd", "summary": "SKATING", "timeout_seconds": 180},
-  {"script": "tests/test_crashbreaker.gd", "summary": "CRASHBREAKER", "timeout_seconds": 180},
-  {"script": "tests/test_rider_skin.gd", "summary": "RIDER_SKIN", "timeout_seconds": 180},
-  {"script": "tests/test_traffic.gd", "summary": "TRAFFIC", "timeout_seconds": 180},
-  {"script": "tests/test_camera.gd", "summary": "CAMERA", "timeout_seconds": 180},
-  {"script": "tests/test_startup.gd", "summary": "STARTUP", "timeout_seconds": 180},
-  {"script": "tests/test_records_store.gd", "summary": "RECORDS", "timeout_seconds": 180},
-  {"script": "tests/test_clock.gd", "summary": "CLOCK", "timeout_seconds": 180},
-  {"script": "tests/test_camera_geometry.gd", "summary": "CAMERA_GEOMETRY", "timeout_seconds": 180},
-  {"script": "tests/test_settlement.gd", "summary": "SETTLEMENT", "timeout_seconds": 180},
-  {"script": "tests/test_replay_timeline.gd", "summary": "REPLAY_TIMELINE", "timeout_seconds": 180},
-  {"script": "tests/test_skating_contacts.gd", "summary": "SKATING_CONTACTS", "timeout_seconds": 180},
-  {"script": "tests/test_modal_inputs.gd", "summary": "MODAL_INPUTS", "timeout_seconds": 180},
-  {"script": "tests/test_records_game.gd", "summary": "RECORDS_GAME", "timeout_seconds": 180},
-  {"script": "tests/test_clock_integration.gd", "summary": "CLOCK_INTEGRATION", "timeout_seconds": 180},
-  {"script": "tests/test_replay_presentation.gd", "summary": "REPLAY_PRESENTATION", "timeout_seconds": 180}
+  {
+    "script": "tests/test_rules.gd",
+    "summary": "RULES",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_injuries.gd",
+    "summary": "INJURIES",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_inputs.gd",
+    "summary": "INPUTS",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_game.gd",
+    "summary": "GAME",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_routes.gd",
+    "summary": "ROUTES",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_playability.gd",
+    "summary": "PLAYABILITY",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_ui.gd",
+    "summary": "UI",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_audio.gd",
+    "summary": "AUDIO",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_skating.gd",
+    "summary": "SKATING",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_crashbreaker.gd",
+    "summary": "CRASHBREAKER",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_rider_skin.gd",
+    "summary": "RIDER_SKIN",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_traffic.gd",
+    "summary": "TRAFFIC",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_camera.gd",
+    "summary": "CAMERA",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_startup.gd",
+    "summary": "STARTUP",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_records_store.gd",
+    "summary": "RECORDS",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_clock.gd",
+    "summary": "CLOCK",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_camera_geometry.gd",
+    "summary": "CAMERA_GEOMETRY",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_settlement.gd",
+    "summary": "SETTLEMENT",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_replay_timeline.gd",
+    "summary": "REPLAY_TIMELINE",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_skating_contacts.gd",
+    "summary": "SKATING_CONTACTS",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_modal_inputs.gd",
+    "summary": "MODAL_INPUTS",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_records_game.gd",
+    "summary": "RECORDS_GAME",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_clock_integration.gd",
+    "summary": "CLOCK_INTEGRATION",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_replay_presentation.gd",
+    "summary": "REPLAY_PRESENTATION",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_replay_integration.gd",
+    "summary": "REPLAY_INTEGRATION",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_skating_descent.gd",
+    "summary": "SKATING_DESCENT",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_settlement_activity.gd",
+    "summary": "SETTLEMENT_ACTIVITY",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_records_ui.gd",
+    "summary": "RECORDS_UI",
+    "timeout_seconds": 180
+  }
 ]

@@ -155,6 +155,18 @@ class CandidateControls(unittest.TestCase):
         archive = self.archive(directory, app, extra=candidate.APP_NAME + "/Contents/test-only.txt")
         self.rejects("unexpected runtime", lambda: candidate.verify_zip(archive, expected))
 
+    def test_documented_appledouble_metadata_and_invalid_metadata(self):
+        directory, app, expected = self.fixture("AppleDouble metadata")
+        archive = self.archive(directory, app)
+        name = "__MACOSX/" + candidate.APP_NAME + "/Contents/Resources/._GAME_LICENSE.txt"
+        with zipfile.ZipFile(archive, "a") as target:
+            target.writestr(name, struct.pack(">II16sH", 0x00051607, 0x00020000, b"\0" * 16, 0))
+        members = candidate.verify_zip(archive, expected)
+        self.assertEqual(len([entry for entry in members if entry["metadata"]]), 1)
+        bad_directory, bad_app, bad_expected = self.fixture("invalid metadata")
+        bad_archive = self.archive(bad_directory, bad_app, extra=name)
+        self.rejects("invalid AppleDouble", lambda: candidate.verify_zip(bad_archive, bad_expected))
+
     def test_escaping_symlink(self):
         directory, app, expected = self.fixture("escaping symlink")
         archive = self.archive(directory, app, symlink=candidate.APP_NAME + "/Contents/escape")
@@ -206,6 +218,21 @@ class CandidateControls(unittest.TestCase):
         wrong = {**self.engine, "sha256": "0" * 64}
         self.rejects("engine executable identity", lambda: candidate.engine_matches_report(wrong, report))
 
+    def test_preserved_legacy_import_failure_is_read_truthfully(self):
+        path = candidate.PROJECT / "builds/test_runs/20261005T021641.874148Z-5053-b6376428/result.json"
+        before = candidate.sha256(path)
+        evidence = candidate.import_evidence(path)
+        self.assertEqual(evidence["import_status"], "failed")
+        self.assertEqual(evidence["engine_exit_code"], 0)
+        self.assertEqual(len(evidence["unexpected_diagnostics"]), 3)
+        self.assertEqual(candidate.sha256(path), before)
+        self.assertTrue(evidence["historical_evidence"])
+        altered = json.loads(path.read_text())
+        altered["import_status"] = "passed"
+        bad = ARTIFACTS / "false import success.json"
+        run_bounded.write_json(bad, altered)
+        self.rejects("import status contradicts", lambda: candidate.import_evidence(bad))
+
     def test_real_single_architecture_engine_rejected(self):
         directory = ARTIFACTS / "actual thin engine control"
         directory.mkdir()
@@ -219,6 +246,19 @@ class CandidateControls(unittest.TestCase):
         self.assertEqual(archs, "arm64")
         self.rejects("must contain x86_64 and arm64", lambda: candidate.architecture_metadata(archs, ""))
         self.assertNotEqual(candidate.sha256(thin), self.actual_engine["sha256"])
+
+    def test_actual_engine_minimum_os_commands_only(self):
+        directory = ARTIFACTS / "actual engine minimum OS metadata"
+        directory.mkdir()
+        result = run_bounded.run_command(["/usr/bin/otool", "-l", self.actual_engine["path"]], 10, directory / "load_commands.output.log")
+        self.assertTrue(result["success"], result)
+        metadata = candidate.architecture_metadata("x86_64 arm64", Path(result["log"]).read_text())
+        self.assertEqual(metadata["declared_minimum_os"], "11.0")
+        self.assertEqual({entry["architecture"]:entry["minimum_os"] for entry in metadata["slice_metadata"]},
+                         {"x86_64":"10.13","arm64":"11.0"})
+        self.assertEqual({entry["architecture"]:entry["load_command"] for entry in metadata["slice_metadata"]},
+                         {"x86_64":"LC_VERSION_MIN_MACOSX","arm64":"LC_BUILD_VERSION"})
+        run_bounded.write_json(directory / "metadata.json", metadata)
 
     def test_actual_original_pack_reader_and_tampered_copy(self):
         original = candidate.PROJECT / "builds/StairWreck.app/Contents/MacOS/StairWreck.pck"

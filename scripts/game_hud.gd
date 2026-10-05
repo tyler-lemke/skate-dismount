@@ -63,6 +63,7 @@ var menu_note_label: Label
 var fund_bar: ProgressBar
 var run_fund_label: Label
 var claim_panel: Control
+var claim_heading: Label
 var claim_lines: Array[Label] = []
 var claim_entries: Array[Dictionary] = []
 var injury_panel: Control
@@ -84,6 +85,16 @@ var aim_label: Label
 var result_fund: Label
 var result_fund_bar: ProgressBar
 var result_note: Label
+var result_improvement: Label
+var records_panel: Panel
+var records_title: Label
+var records_detail: Label
+var records_amount: Label
+var retry_save_button: Button
+var restore_backup_button: Button
+var fresh_records_button: Button
+var records_focus_key: String = ""
+var records_saved_focus: Control
 var new_money: int = 0
 var result_target: int = 0
 var result_reveal_time: float = 0.0
@@ -94,7 +105,7 @@ var current_state: String = "MENU"
 
 func _ready() -> void:
 	root=Control.new(); root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); root.mouse_filter=Control.MOUSE_FILTER_IGNORE; add_child(root)
-	build_menu(); build_hud(); build_results(); build_pause(); build_help()
+	build_menu(); build_hud(); build_results(); build_records_status(); build_pause(); build_help()
 	screen_flash=ColorRect.new(); screen_flash.color=Color(1,.75,.4,0); screen_flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); screen_flash.mouse_filter=Control.MOUSE_FILTER_IGNORE; root.add_child(screen_flash)
 	show_menu()
 
@@ -153,6 +164,7 @@ func build_menu() -> void:
 	menu_note_label=label(menu,"",Vector2(782,268),Vector2(590,37),16,MUTED)
 	panel(menu,Vector2(754,660),Vector2(654,218),Color(.035,.075,.105,.96),Color("38515b"))
 	route_title=label(menu,"",Vector2(782,710),Vector2(604,50),36)
+	route_title.clip_text=true; route_title.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS
 	route_info=label(menu,"",Vector2(784,680),Vector2(580,28),13,MINT)
 	route_desc=label(menu,"",Vector2(784,763),Vector2(580,77),17,MUTED)
 	label(menu,"ONE CLAIM PER ROUTE  /  BETTER RUNS RAISE THE FUND",Vector2(784,846),Vector2(600,22),12,MINT)
@@ -163,11 +175,11 @@ func build_hud() -> void:
 	panel(live_chrome,Vector2(26,26),Vector2(345,137),Color(.025,.067,.095,.96),Color("557070"))
 	panel(live_chrome,Vector2(26,26),Vector2(5,137),MINT)
 	label(live_chrome,"INSURANCE PAYOUT",Vector2(48,43),Vector2(280,25),13,GOLD)
-	score_label=label(live_chrome,"$0",Vector2(45,68),Vector2(315,60),46,PAPER)
+	score_label=label(live_chrome,"$0",Vector2(45,68),Vector2(315,60),38,PAPER)
 	combo_label=label(live_chrome,"",Vector2(48,132),Vector2(320,24),14,MINT)
 	panel(live_chrome,Vector2(403,27),Vector2(666,57),Color(.025,.067,.095,.90))
 	label(live_chrome,"TREATMENT FUND",Vector2(422,36),Vector2(159,22),11,GOLD)
-	run_fund_label=label(live_chrome,"",Vector2(578,35),Vector2(465,33),17,PAPER)
+	run_fund_label=label(live_chrome,"",Vector2(578,30),Vector2(465,44),17,PAPER)
 	panel(live_chrome,Vector2(1094,26),Vector2(320,86),Color(.025,.067,.095,.93))
 	phase_label=label(live_chrome,"",Vector2(1113,40),Vector2(282,28),19,MINT)
 	timer_label=label(live_chrome,"",Vector2(1113,73),Vector2(282,25),13,MUTED)
@@ -249,7 +261,7 @@ func build_injury_file() -> void:
 
 func build_claim_feed() -> void:
 	claim_panel=panel(live_chrome,Vector2(919,259),Vector2(495,68),Color(.025,.067,.095,.94),Color("557070"))
-	label(claim_panel,"LATEST CLAIM RECEIPTS",Vector2(17,9),Vector2(455,20),11,GOLD)
+	claim_heading=label(claim_panel,"LATEST CLAIM RECEIPTS",Vector2(17,9),Vector2(455,20),11,GOLD)
 	claim_lines.append(label(claim_panel,"",Vector2(17,34),Vector2(460,26),14,PAPER))
 	claim_panel.visible=false
 
@@ -274,9 +286,11 @@ func build_results() -> void:
 	panel(results,Vector2(365,63),Vector2(6,783),MINT)
 	label(results,"CLAIM FILED  /  RUN REPORT",Vector2(407,96),Vector2(625,27),14,GOLD)
 	result_title=label(results,"",Vector2(405,132),Vector2(625,43),31,MINT)
+	result_title.clip_text=true; result_title.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS
 	label(results,"TOTAL INSURANCE PAYOUT",Vector2(407,204),Vector2(625,25),14,MUTED)
 	result_score=label(results,"",Vector2(402,235),Vector2(630,73),59,PAPER)
-	panel(results,Vector2(402,327),Vector2(636,3),Color("506770"))
+	result_improvement=label(results,"",Vector2(408,309),Vector2(620,25),15,MINT)
+	panel(results,Vector2(402,338),Vector2(636,3),Color("506770"))
 	result_stats=label(results,"",Vector2(408,351),Vector2(620,132),19,MUTED)
 	panel(results,Vector2(402,495),Vector2(636,103),Color("172d36"),Color("45616a"))
 	result_fund=label(results,"",Vector2(424,510),Vector2(592,32),20,GOLD)
@@ -292,6 +306,114 @@ func build_results() -> void:
 	button(results,"WATCH REPLAY",Vector2(407,738),Vector2(300,48),func(): replay_requested.emit())
 	button(results,"ROUTE SELECT",Vector2(726,738),Vector2(308,48),func(): menu_requested.emit())
 	label(results,"R  RETRY    •    V  REPLAY    •    ESC  ROUTES",Vector2(408,806),Vector2(620,20),11,MUTED)
+
+func build_records_status() -> void:
+	records_panel=panel(root,Vector2(754,338),Vector2(654,184),Color(.028,.067,.092,.98),Color("506770"))
+	records_title=label(records_panel,"",Vector2(20,16),Vector2(614,28),18,MINT)
+	records_detail=label(records_panel,"",Vector2(20,50),Vector2(614,54),16,PAPER)
+	records_detail.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	records_amount=label(records_panel,"",Vector2(20,108),Vector2(614,25),15,GOLD)
+	retry_save_button=button(records_panel,"RETRY SAVE",Vector2(20,142),Vector2(280,46),func(): retry_save_requested.emit(),true)
+	restore_backup_button=button(records_panel,"RESTORE BACKUP",Vector2(20,142),Vector2(280,46),func(): recover_requested.emit(true),true)
+	fresh_records_button=button(records_panel,"START FRESH SAVE",Vector2(20,142),Vector2(280,46),func(): recover_requested.emit(false),true)
+	records_panel.visible=false
+
+func records_presentation() -> Dictionary:
+	var store: RefCounted=get_parent().records_store
+	var banked:int=store.fund_total()
+	var pending:int=maxi(0,store.session_fund_total()-banked)
+	var state:String=store.load_state
+	var facts:Dictionary={"state":state,"banked":banked,"pending":pending,"retry":false,"backup":false,"fresh":false,"title":"LOCAL RECORDS SAVED","detail":"Claims and preferences are saved on this device."}
+	if state=="unsupported":
+		facts.title="NEWER SAVE PROTECTED"
+		facts.detail="Continue for this session. This game's save cannot replace a newer version."
+	elif store.recovery_pending():
+		facts.title="BACKUP RECOVERY / SAVE PENDING" if not store.backup_candidate.is_empty() else "FRESH RECOVERY / SAVE PENDING"
+		facts.detail="Your recovery choice is ready. Retry Save to finish banking claims."
+		if not store.quarantine_path.is_empty(): facts.detail+=" The damaged original is preserved."
+		facts.retry=true
+	elif state in ["corrupt","recoverable"]:
+		facts.title="DAMAGED SAVE / SESSION ONLY"
+		if not store.backup_candidate.is_empty():
+			facts.detail="A valid backup is available. Restore it to bank your claims; the damaged original is preserved."
+			facts.backup=true
+		else:
+			facts.detail="No valid backup is available. Start a fresh save to bank claims; the damaged original is preserved."
+			facts.fresh=true
+	elif store.pending_save:
+		facts.title="SESSION BEST / SAVE PENDING" if pending>0 else "PREFERENCES / SAVE PENDING"
+		facts.detail="Your session changes are active. Retry Save to keep them after closing the game."
+		facts.retry=true
+	elif state=="inaccessible":
+		facts.title="SAVE UNAVAILABLE / SESSION ONLY"
+		facts.detail="This save cannot be read. Session changes will remain pending until saving is available."
+	elif state=="missing":
+		facts.title="READY TO SAVE YOUR FIRST CLAIM"
+		facts.detail="Better route claims build Mom's banked treatment fund."
+	elif not store.quarantine_path.is_empty():
+		facts.title="BACKUP RESTORED / SAVED" if not store.backup_candidate.is_empty() else "FRESH SAVE / SAVED"
+		facts.detail="Your claims are banked. The damaged original has been preserved."
+	return facts
+
+func update_records_status() -> void:
+	if not is_instance_valid(records_panel) or get_parent().records_store==null: return
+	var owner:Control=get_viewport().gui_get_focus_owner()
+	var facts:Dictionary=records_presentation()
+	var protected:bool=facts.state in ["unsupported","corrupt","recoverable","inaccessible"]
+	var eligible:bool=current_state in ["MENU","READY","RESULTS"]
+	records_panel.visible=eligible or protected or get_parent().records_store.pending_save
+	if not records_panel.visible: return
+	var narrow:bool=current_state=="RESULTS"
+	var width:float=320 if narrow else (654 if current_state=="MENU" else 490)
+	records_panel.position=Vector2(1094,190) if narrow else (Vector2(754,338) if current_state=="MENU" else Vector2(403,183))
+	records_panel.size=Vector2(width,342 if narrow else 218)
+	records_title.size=Vector2(width-40,52 if narrow else 28)
+	records_title.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	records_detail.position.y=76 if narrow else 50
+	records_detail.size=Vector2(width-40,124 if narrow else 76)
+	records_amount.position.y=210 if narrow else 132
+	records_amount.size=Vector2(width-40,50 if narrow else 25)
+	records_amount.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	records_title.text=facts.title
+	records_detail.text=facts.detail
+	records_amount.text="UNBANKED  +$%s" % WreckRules.money(facts.pending) if facts.pending>0 else ("PREFERENCES UNSAVED" if get_parent().records_store.pending_save else "BANKED FUND  $"+WreckRules.money(facts.banked))
+	records_title.add_theme_color_override("font_color",GOLD if protected or get_parent().records_store.pending_save else MINT)
+	for control in [retry_save_button,restore_backup_button,fresh_records_button]:
+		control.position=Vector2(20,276 if narrow else 166)
+		control.size=Vector2(width-40 if narrow else mini(280,width-40),46)
+	retry_save_button.visible=eligible and facts.retry
+	restore_backup_button.visible=eligible and facts.backup
+	fresh_records_button.visible=eligible and facts.fresh
+	update_phase_focus_order()
+	if owner in [retry_save_button,restore_backup_button,fresh_records_button] and not owner.is_visible_in_tree():
+		if retry_save_button.is_visible_in_tree() and get_parent().records_store.recovery_pending(): retry_save_button.grab_focus()
+		elif is_instance_valid(records_saved_focus) and records_saved_focus.is_visible_in_tree() and not (records_saved_focus is BaseButton and records_saved_focus.disabled): records_saved_focus.grab_focus()
+		else: focus_phase(current_state=="MENU",current_state=="RESULTS")
+	var focus_key:String=facts.state+":"+current_state
+	if protected and (facts.backup or facts.fresh) and eligible and focus_key!=records_focus_key:
+		records_focus_key=focus_key
+		call_deferred("focus_records_recovery")
+
+func focus_records_recovery() -> void:
+	if get_parent().effective_modal()!=get_parent().Modal.NONE or not get_parent().window_focused: return
+	for control in [restore_backup_button,fresh_records_button]:
+		if control.is_visible_in_tree():
+			var owner:Control=get_viewport().gui_get_focus_owner()
+			if owner not in [restore_backup_button,fresh_records_button]: records_saved_focus=owner
+			control.grab_focus()
+			return
+
+func update_phase_focus_order() -> void:
+	if get_parent().effective_modal()!=get_parent().Modal.NONE: return
+	var phase_panel:Control=menu if current_state=="MENU" else (results if current_state=="RESULTS" else hud)
+	var controls:Array[Button]=[]
+	for node in phase_panel.find_children("*","Button",true,false):
+		if node.is_visible_in_tree() and not node.disabled: controls.append(node)
+	for control in [retry_save_button,restore_backup_button,fresh_records_button]:
+		if control.is_visible_in_tree(): controls.append(control)
+	for index in controls.size():
+		controls[index].focus_next=controls[index].get_path_to(controls[(index+1)%controls.size()])
+		controls[index].focus_previous=controls[index].get_path_to(controls[posmod(index-1,controls.size())])
 
 func build_pause() -> void:
 	pause_panel=section(); pause_panel.visible=false
@@ -357,6 +479,7 @@ func update_campaign(money_added: int = 0) -> void:
 	var notes: Array[String]=["Mom: I used to carry you up these stairs.","Mom: Tea's waiting. Tell me about your day.","Mom: I'll still embarrass you at graduation."]
 	menu_note_label.text=notes[clampi(get_parent().level_index,0,2)] if fund<goal else "Mom: Treatment starts tomorrow. Come home."
 	run_fund_label.text="SECURED  $%s  /  $%s" % [WreckRules.money(fund),WreckRules.money(goal)]
+	update_records_status()
 
 func show_results(rules: WreckRules, index: int, is_best: bool) -> void:
 	results.visible=true; hud.visible=true; live_chrome.visible=false; power_panel.visible=false; pose_panel.visible=false; injury_panel.visible=true; claim_panel.visible=false
@@ -365,16 +488,20 @@ func show_results(rules: WreckRules, index: int, is_best: bool) -> void:
 	update_injury_file(rules)
 	var medal:String=rules.medal(index)
 	var fund:int=get_parent().fund_total()
-	var newly_funded:bool=new_money>0 and fund>=WreckRules.TREATMENT_GOAL and fund-new_money<WreckRules.TREATMENT_GOAL
-	result_title.text="TREATMENT FUNDED" if newly_funded else "%s CLAIM  /  %s" % [medal,"NEW BEST" if is_best else "FILED"]
+	var newly_funded:bool=get_parent().last_goal_crossed
+	var pending:int=maxi(0,get_parent().records_store.session_fund_total()-fund)
+	result_title.text="TREATMENT FUNDED" if newly_funded else ("CLAIM / SAVE PENDING" if pending>0 else "%s CLAIM  /  %s" % [medal,"NEW BEST" if is_best else "FILED"])
+	result_improvement.text="ABOVE PREVIOUS BANKED BEST  +$%s" % WreckRules.money(get_parent().last_claim_improvement)
 	result_target=rules.score
 	result_reveal_time=0.0
 	result_reveal_active=true
 	result_score.text="$0"
 	result_stats.text="PROPERTY CLAIM                     $%s\nINJURY CLAIM                            $%s\n%d objects wrecked    /    %d explosions\n%d-hit cascade    /    %d km/h peak" % [WreckRules.money(rules.property_damage),WreckRules.money(rules.rider_damage),rules.destroyed,rules.explosions,rules.best_combo,int(rules.peak_speed*3.6)]
-	result_fund.text="TREATMENT FUND     $%s / $%s" % [WreckRules.money(fund),WreckRules.money(WreckRules.TREATMENT_GOAL)]
+	result_fund.text="BANKED FUND     $%s / $%s" % [WreckRules.money(fund),WreckRules.money(WreckRules.TREATMENT_GOAL)]
 	result_fund_bar.value=mini(fund,WreckRules.TREATMENT_GOAL)
-	if fund>=WreckRules.TREATMENT_GOAL:
+	if pending>0:
+		result_note.text="+$%s unbanked. Retry Save to keep this improvement." % WreckRules.money(pending)
+	elif fund>=WreckRules.TREATMENT_GOAL:
 		result_note.text="Mom: Treatment starts tomorrow. Come home."
 	elif new_money>0:
 		result_note.text="+$%s secured. Mom saved you a seat at dinner." % WreckRules.money(new_money)
@@ -382,6 +509,7 @@ func show_results(rules: WreckRules, index: int, is_best: bool) -> void:
 		result_note.text="Claim filed. Mom saved you a seat at dinner."
 	result_tip.text="NEXT LINE  /  "+WreckRules.LEVELS[index].tip
 	next_button.text="NEXT ROUTE →" if index<2 else "CIVIC ROUTE →"
+	update_records_status()
 
 func update_game(rules: WreckRules, state: String, speed: float, charge: float, boosts: int, remaining: float, slow: bool) -> void:
 	current_state=state
@@ -413,7 +541,8 @@ func update_game(rules: WreckRules, state: String, speed: float, charge: float, 
 	injury_details.visible=state=="RESULTS"
 	injury_panel.size.y=472 if state=="RESULTS" else 230
 	injury_rail.size.y=injury_panel.size.y
-	claim_panel.visible=state=="CRASH" and not claim_entries.is_empty()
+	claim_panel.visible=state in ["CRASH","REPLAY"] and not claim_entries.is_empty()
+	claim_heading.text="RECORDED RECEIPTS" if state=="REPLAY" else "LATEST CLAIM RECEIPTS"
 	charge_bar.value=charge
 	charge_label.text="RELEASE TO LAUNCH   %d%% POWER" % int(charge*100) if charge>0 else "HOLD SPACE TO BUILD POWER"
 	if state=="READY": update_pose_selector()
@@ -434,10 +563,11 @@ func update_game(rules: WreckRules, state: String, speed: float, charge: float, 
 	else:
 		aim_label.text="ONE CRASHBREAKER\nAIM AND SPEND AFTER BAIL"
 	var secured:int=get_parent().fund_total()
-	var preview:int=maxi(0,rules.score-get_parent().best_scores[get_parent().level_index]) if state in ["RUN","CRASH"] else 0
-	if state=="REPLAY": run_fund_label.text="RECORDED PAYOUT $%s  /  NO NEW CLAIM" % WreckRules.money(rules.score)
+	var preview:int=maxi(0,rules.score-int(get_parent().records_store.durable_snapshot.best_scores[get_parent().level_index])) if state in ["RUN","CRASH"] else 0
+	if state=="REPLAY": run_fund_label.text="RECORDED PAYOUT $%s\nNO NEW CLAIM" % WreckRules.money(rules.score)
 	elif state=="RESULTS": run_fund_label.text="CLAIM FILED $%s  /  FUND $%s" % [WreckRules.money(rules.score),WreckRules.money(secured)]
-	else: run_fund_label.text="SECURED $%s  /  THIS CLAIM +$%s" % [WreckRules.money(secured),WreckRules.money(preview)]
+	else: run_fund_label.text="BANKED $%s\nTHIS CLAIM +$%s" % [WreckRules.money(secured),WreckRules.money(preview)]
+	update_records_status()
 
 func update_pose_selector() -> void:
 	var index:int=clampi(get_parent().pose_index,0,WreckRules.POSES.size()-1)
@@ -502,7 +632,7 @@ func claim_event(name: String, amount: int, injury: bool = false) -> void:
 	refresh_claim_feed()
 
 func refresh_claim_feed() -> void:
-	claim_panel.visible=not claim_entries.is_empty() and hud.visible and not results.visible and current_state in ["RUN","CRASH"]
+	claim_panel.visible=not claim_entries.is_empty() and hud.visible and not results.visible and current_state in ["RUN","CRASH","REPLAY"]
 	var shown:Array[Dictionary]=[]
 	var priority:int=-1
 	for i in claim_entries.size():
@@ -523,7 +653,14 @@ func refresh_claim_feed() -> void:
 	for i in claim_lines.size():
 		if i<shown.size():
 			var event:Dictionary=shown[i]
-			claim_lines[i].text="%s  /  %s    +$%s" % ["INJURY" if bool(event.injury) else "PROPERTY",event.name,WreckRules.money(int(event.amount))]
+			var prefix:String=("INJURY" if bool(event.injury) else "PROPERTY")+"  /  "
+			var suffix:String="    +$"+WreckRules.money(int(event.amount))
+			var name:String=str(event.name)
+			var font:Font=claim_lines[i].get_theme_font("font")
+			var font_size:int=claim_lines[i].get_theme_font_size("font_size")
+			while name.length()>1 and font.get_string_size(prefix+name+suffix,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x>claim_lines[i].size.x:
+				name=name.trim_suffix("…").left(name.trim_suffix("…").length()-1)+"…"
+			claim_lines[i].text=prefix+name+suffix
 			claim_lines[i].add_theme_color_override("font_color",GOLD if bool(event.injury) else PAPER)
 		else:
 			claim_lines[i].text=""
@@ -540,6 +677,7 @@ func flash() -> void:
 
 func _process(delta: float) -> void:
 	var real_delta:float=get_parent().presentation_delta
+	update_records_status()
 	if result_reveal_active:
 		result_reveal_time=minf(1.0,result_reveal_time+real_delta/.95)
 		var fraction:float=1.0-pow(1.0-result_reveal_time,3.0)

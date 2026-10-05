@@ -41,7 +41,7 @@ func independent_lens_clear(at: Vector3, mask: int = 3) -> bool:
 	point.collision_mask = mask
 	if not space.intersect_point(point, 1).is_empty(): return false
 	var envelope := SphereShape3D.new()
-	envelope.radius = .22
+	envelope.radius = .26
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.shape = envelope
 	query.transform = Transform3D(Basis.IDENTITY, at)
@@ -60,7 +60,7 @@ func independent_path(from: Vector3, to: Vector3) -> bool:
 	for sample in range(33):
 		if not independent_lens_clear(from.lerp(to, float(sample) / 32.0)): return false
 	var envelope := SphereShape3D.new()
-	envelope.radius = .22
+	envelope.radius = .26
 	var swept := PhysicsShapeQueryParameters3D.new()
 	swept.shape = envelope
 	swept.transform = Transform3D(Basis.IDENTITY, from)

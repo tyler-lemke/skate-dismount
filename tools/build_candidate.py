@@ -30,7 +30,7 @@ ZIP_NAME = "StairWreck-macOS.zip"
 BUILD_METHOD = "runtime_pckpacker/from_existing_import_cache"
 PACKAGING_INPUTS = ("export_presets.cfg", "LICENSE", "docs/GODOT_LICENSE.txt",
                     "tools/build_candidate.py", "tools/pack_candidate.gd", "tools/run_bounded.py",
-                    "tools/package_assets_probe.gd")
+                    "tools/package_assets_probe.gd", "tools/packaged_records_probe.gd")
 FORBIDDEN_PACK_ROOTS = {"blender", "docs", "tests", "tools", "builds", ".beads", ".git", ".agents", ".codex"}
 
 
@@ -129,10 +129,31 @@ def version_tuple(value):
 def architecture_metadata(architectures, load_commands):
     archs = architectures.strip().split()
     require(set(archs) == {"x86_64", "arm64"} and len(archs) == 2, f"engine must contain x86_64 and arm64; found {archs}")
-    minimums = re.findall(r'^\s*(?:minos|version)\s+(\d+(?:\.\d+){1,2})\s*$', load_commands, re.M)
-    require(len(minimums) == 2, f"expected minimum OS metadata for two engine slices; found {minimums}")
+    sections = re.split(r'^.*\(architecture (x86_64|arm64)\):\s*$', load_commands, flags=re.M)
+    require(len(sections) == 5 and {sections[1], sections[3]} == set(archs), "otool output lacks both architecture sections")
+    slices = []
+    for arch, commands in zip(sections[1::2], sections[2::2]):
+        found = []
+        for block in re.split(r'^Load command \d+\s*$', commands, flags=re.M):
+            legacy = re.search(r'^\s*cmd LC_VERSION_MIN_MACOSX\s*$', block, re.M)
+            modern = re.search(r'^\s*cmd LC_BUILD_VERSION\s*$', block, re.M)
+            if not legacy and not modern:
+                continue
+            if modern:
+                require(re.search(r'^\s*platform (?:1|macos)\s*$', block, re.M), f"engine slice {arch} is not a macOS build")
+            field = "version" if legacy else "minos"
+            minimum = re.search(r'^\s*' + field + r' (\d+(?:\.\d+){1,2})\s*$', block, re.M)
+            require(minimum is not None, f"engine slice {arch} lacks declared minimum OS")
+            sdk = re.search(r'^\s*sdk (\d+(?:\.\d+){1,2})\s*$', block, re.M)
+            found.append({"architecture": arch, "minimum_os": minimum[1], "sdk": sdk[1] if sdk else None,
+                          "load_command": "LC_VERSION_MIN_MACOSX" if legacy else "LC_BUILD_VERSION"})
+        require(len(found) == 1, f"engine slice {arch} has ambiguous/missing macOS minimum metadata")
+        slices.extend(found)
+    slices.sort(key=lambda item: item["architecture"])
+    minimums = [item["minimum_os"] for item in slices]
     declared = max(minimums, key=version_tuple)
-    return {"architectures": sorted(archs), "slice_minimum_os": minimums, "declared_minimum_os": declared}
+    return {"architectures": sorted(archs), "slice_minimum_os": minimums,
+            "slice_metadata": slices, "declared_minimum_os": declared}
 
 
 def engine_matches_report(identity, report):
@@ -149,6 +170,25 @@ def stable_inputs(before, after, engine_before, engine_after):
     require(engine_before == engine_after, "engine executable changed during construction")
 
 
+def import_evidence(path):
+    """Read actual bounded import evidence, including R01's pre-label result."""
+    imported = json.loads(path.read_text(encoding="utf-8"))
+    outcome = imported.get("import", imported)
+    require(isinstance(outcome, dict) and "--import" in outcome.get("command", []) and
+            type(outcome.get("success")) is bool, "supplied import evidence lacks an actual bounded import outcome")
+    log = Path(outcome["log"])
+    inspected = run_bounded.inspect_output(log.read_text(encoding="utf-8", errors="replace"))
+    rejected = bool(outcome.get("exit_code") != 0 or outcome.get("timed_out", False) or
+                    outcome.get("interrupted", False) or outcome.get("errors") or inspected["errors"])
+    require(outcome["success"] == (not rejected), "supplied import result contradicts actual bounded diagnostics")
+    status = "passed" if outcome["success"] else "failed"
+    require(imported.get("import_status", status) == status, "supplied import status contradicts actual import outcome")
+    return {"result": str(path.resolve()), "sha256": sha256(path), "import_status": status,
+            "log": str(log), "log_sha256": sha256(log), "engine_exit_code": outcome.get("exit_code"),
+            "unexpected_diagnostics": inspected["errors"], "evidence_source_digest": imported.get("input_source_digest", {}).get("sha256"),
+            "historical_evidence": True}
+
+
 def run_check(report, name, command, directory, timeout, *, expected=None, cwd=None):
     result = run_bounded.run_command(command, timeout, directory / "logs" / (name + ".output.log"),
                                      expected_summary=expected, cwd=cwd)
@@ -161,6 +201,7 @@ def run_check(report, name, command, directory, timeout, *, expected=None, cwd=N
 def inspect_engine(engine, report, directory, timeout):
     before = run_bounded.executable_identity(engine)
     version = run_check(report, "engine_version", [engine, "--version"], directory, 10)
+    require(version.startswith("4.7.2."), f"candidate requires tested Godot 4.7.2; found {version}")
     archs = run_check(report, "engine_architectures", ["/usr/bin/lipo", "-archs", before["path"]], directory, timeout)
     loads = run_check(report, "engine_load_commands", ["/usr/bin/otool", "-l", before["path"]], directory, timeout)
     metadata = architecture_metadata(archs, loads)
@@ -312,6 +353,13 @@ def verify_zip(path, expected_map):
                     require(info.filename in expected, f"unexpected runtime archive member: {info.filename}")
                     require(info.file_size == expected[info.filename]["bytes"], f"archive member size mismatch: {info.filename}")
                 data = archive.read(info)  # zipfile verifies the actual member CRC.
+                if metadata:
+                    require(len(data) >= 26 and struct.unpack(">II", data[:8]) == (0x00051607, 0x00020000),
+                            f"invalid AppleDouble archive metadata: {info.filename}")
+                    counterpart = "/".join((*parts[1:-1], parts[-1][2:]))
+                    require(counterpart == APP_NAME or counterpart in expected or
+                            any(name.startswith(counterpart + "/") for name in expected),
+                            f"macOS metadata identifies no candidate member: {info.filename}")
                 digest = hashlib.sha256(data).hexdigest()
                 members.append({"path": info.filename, "bytes": len(data), "sha256": digest, "crc32": info.CRC,
                                 "mode": stat.S_IMODE(mode), "metadata": metadata})
@@ -344,10 +392,17 @@ def construct_app(directory, engine, build_id, identity):
     (app / "Contents/MacOS").mkdir(parents=True)
     (app / "Contents/Resources").mkdir()
     shutil.copyfile(engine["path"], app / "Contents/MacOS/StairWreck")
+    copied_engine = app / "Contents/MacOS/StairWreck"
+    require(copied_engine.stat().st_size == engine["bytes"] and sha256(copied_engine) == engine["sha256"],
+            "copied engine differs from tested original before signing")
     (app / "Contents/MacOS/StairWreck").chmod(0o755)
+    expected_inputs = {entry["path"]: entry for entry in identity["source_inputs"]}
     for source, target in ((PROJECT / "assets/StairWreck.icns", "StairWreck.icns"),
                            (PROJECT / "docs/GODOT_LICENSE.txt", "GODOT_LICENSE.txt"), (PROJECT / "LICENSE", "GAME_LICENSE.txt")):
         shutil.copyfile(source, app / "Contents/Resources" / target)
+        relative = source.relative_to(PROJECT).as_posix()
+        require(sha256(app / "Contents/Resources" / target) == expected_inputs[relative]["sha256"],
+                f"copied packaging input differs: {relative}")
     run_bounded.write_json(app / "Contents/Resources/build_identity.json", {"build_id": build_id, "identity": identity})
     plist = {"CFBundleExecutable": "StairWreck", "CFBundleIdentifier": "com.stairwreck.game",
              "CFBundleName": "STAIR WRECK", "CFBundleDisplayName": "STAIR // WRECK",
@@ -404,11 +459,7 @@ def build(args):
               "quarantined_launch": "unverified", "packaged_runtime_status": "not_run", "normal_packaged_persistence": "not_run",
               "r13_acceptance_complete": False, "validation_scope": "candidate_archive_integrity_only"}
     if args.import_result:
-        imported_report = json.loads(args.import_result.read_text(encoding="utf-8"))
-        require(imported_report.get("import_status") in ("passed", "failed"), "supplied import evidence lacks an actual import outcome")
-        report["separate_editor_import_evidence"] = {"result": str(args.import_result.resolve()),
-                                                    "sha256": sha256(args.import_result),
-                                                    "import_status": imported_report["import_status"]}
+        report["separate_editor_import_evidence"] = import_evidence(args.import_result)
     directory = preparation
     try:
         engine = inspect_engine(args.engine, report, preparation, args.timeout_seconds)
@@ -480,6 +531,9 @@ def check_runtime(directory, report, timeout):
     cwd = check_root / "unrelated empty cwd"
     cwd.mkdir(parents=True, exist_ok=False)
     executable = app / "Contents/MacOS/StairWreck"
+    expected_tools = {entry["path"]: entry["sha256"] for entry in report["input_inventory"]}
+    for script in ("tools/package_assets_probe.gd", "tools/packaged_records_probe.gd"):
+        require(sha256(PROJECT / script) == expected_tools.get(script), f"external packaged probe changed since candidate identity: {script}")
     results = []
     for level in range(3):
         case = check_root / ("level" + str(level))
@@ -504,6 +558,52 @@ def check_runtime(directory, report, timeout):
                   "models": 19, "audio": 15, "hero_bones": 11, "taxi_morph": "verified_by_existing_probe", "external": True},
                   "packaged_runtime_status": "passed", "candidate_status": "candidate_runtime_verified_persistence_pending"})
     report["validation_scope"] = "candidate_archive_and_headless_runtime_only"
+    run_bounded.write_json(directory / "manifest.json", report)
+    check_records(directory, report, timeout, executable, check_root, cwd)
+
+
+def check_records(directory, report, timeout, executable, check_root, cwd):
+    probe = PROJECT / "tools/packaged_records_probe.gd"
+    storage = check_root / "normal isolated records"
+    storage.mkdir()
+    normal = storage / "normal.json"
+    failed = storage / "missing parent" / "retry.json"
+    migration = storage / "migration.json"
+    unsupported = storage / "future.json"
+    run_bounded.write_json(migration, {"version": 1, "best_scores": [111, 222, 333], "muted": True, "hat": 1})
+    unsupported.write_bytes(b'{"version":99,"best_scores":[1,2,3],"unknown":{"keep":"exact"}}\n')
+    future_before = sha256(unsupported)
+    states = []
+    for case, records in (("write", normal), ("verify", normal), ("failed-retry", failed), ("verify-failed-retry", failed),
+                          ("migrate", migration), ("verify-migrate", migration), ("unsupported", unsupported)):
+        case_dir = storage / ("logs " + case)
+        case_dir.mkdir()
+        output = run_check(report, "external_packaged_records_" + case,
+                           [str(executable), "--headless", "--fixed-fps", "60", "--script", str(probe),
+                            "--log-file", str(case_dir / "engine.log"), "--", "--probe-case=" + case,
+                            "--records-path=" + str(records)], directory, timeout, expected="PACKAGED_RECORDS", cwd=cwd)
+        markers = [line.strip()[len("PACKAGED_RECORDS_STATE: "):] for line in output.splitlines()
+                   if line.strip().startswith("PACKAGED_RECORDS_STATE: ")]
+        require(len(markers) == 1, f"packaged normal records case {case} lacks exact state evidence")
+        state = json.loads(markers[0])
+        require(state.get("case") == case and state.get("selected_path") == str(records) and state.get("read_path") == str(records),
+                f"packaged normal records case {case} read a different profile")
+        require(state.get("test_mode") is False and state.get("self_check") is False, "normal records probe selected automation storage mode")
+        states.append(state)
+    expected_profiles = ((normal, [100000,0,0], [0,0,0], True, 2),
+                         (failed, [0,150000,0], [0,0,0], True, 2), (migration, [0,0,250000], [111,222,333], True, 1))
+    for path, scores, legacy, muted, hat in expected_profiles:
+        actual = json.loads(path.read_text(encoding="utf-8"))
+        require(actual == {"version":2,"best_scores":scores,"legacy_scores":legacy,"muted":muted,"hat":hat},
+                f"external independent durable profile bytes disagree: {path}")
+    require(sha256(unsupported) == future_before, "normal packaged probe altered unsupported original profile bytes")
+    require(not list(cwd.iterdir()), "normal packaged probe acquired source files in unrelated working directory")
+    report.update({"normal_packaged_persistence": "passed", "normal_records_probe": {"external": True,
+                   "scope": "controlled bookkeeping fixture; no physical crash/native claim provenance",
+                   "script": str(probe), "sha256": sha256(probe), "states": states,
+                   "profiles": [file_entry(path, str(path.relative_to(check_root))) for path in (normal,failed,migration,unsupported)]},
+                   "candidate_status": "candidate_headless_and_storage_verified_native_pending",
+                   "validation_scope": "candidate_archive_headless_runtime_and_isolated_bookkeeping_only"})
     run_bounded.write_json(directory / "manifest.json", report)
 
 

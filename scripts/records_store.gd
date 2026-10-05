@@ -117,6 +117,9 @@ func load_records() -> Dictionary:
 func fund_total() -> int:
 	return _total(durable_snapshot)
 
+func recovery_pending() -> bool:
+	return _recovery_authorized and pending_save
+
 func session_fund_total() -> int:
 	return _total(session_candidate)
 
@@ -161,7 +164,7 @@ func commit(candidate: Dictionary) -> Dictionary:
 	if _uncertain or load_state == "inaccessible": return retry()
 	if load_state in ["unsupported", "corrupt", "recoverable"] and not _recovery_authorized:
 		return _failure("profile_"+load_state, load_state)
-	return _write_pending(durable_snapshot)
+	return _write_pending(_recovery_baseline if _recovery_authorized else durable_snapshot)
 
 func retry() -> Dictionary:
 	if not pending_save: return _result(true)

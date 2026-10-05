@@ -11,6 +11,10 @@ var replay_timeline=ReplayTimeline.new()
 var replay_presentation=ReplayPresentation.new()
 var replay_catalog: Dictionary={}
 var replay_sample: Dictionary={}
+var replay_events: Array[Dictionary]=[]
+var replay_receipt_cursor: int=0
+var replay_live_camera: Dictionary={}
+var replay_live_claims: Array[Dictionary]=[]
 var replay_visibility: Dictionary={}
 var camera_diagnostic: Dictionary={}
 var last_camera_sample: Dictionary={}
@@ -118,6 +122,7 @@ var impact_cooldown: float = 0.0
 var boost_cooldown: float = 0.0
 var crash_real_clock: float = 0.0
 var last_money_secured: int = 0
+var last_claim_improvement: int = 0
 var claim_events: Array[Dictionary] = []
 var cascade_focus: Vector3 = Vector3.ZERO
 var cascade_focus_left: float = 0.0
@@ -141,7 +146,8 @@ func _ready() -> void:
 		return
 	startup_records_read_path = save_path
 	load_records()
-	camera=Camera3D.new(); camera.fov=58; camera.near=.15; camera.far=250; add_child(camera); camera.current=true
+	get_window().min_size=Vector2i(960,600)
+	camera=Camera3D.new(); camera.physics_interpolation_mode=Node.PHYSICS_INTERPOLATION_MODE_OFF; camera.fov=58; camera.near=.15; camera.far=250; add_child(camera); camera.current=true
 	hud=HUD.new(); hud.process_mode=Node.PROCESS_MODE_ALWAYS; add_child(hud)
 	hud.play_requested.connect(start_ready)
 	hud.route_requested.connect(select_route)
@@ -232,7 +238,9 @@ func save_records() -> bool:
 	var result: Dictionary = records_store.commit({"version":2,"best_scores":best_scores,"legacy_scores":legacy_scores,"muted":muted,"hat":selected_hat})
 	sync_records_state()
 	consume_secured_events()
-	if is_instance_valid(hud): hud.update_campaign(last_money_secured)
+	if is_instance_valid(hud):
+		hud.update_campaign(last_money_secured)
+		if phase==Phase.RESULTS: hud.show_results(rules,level_index,result_was_best)
 	if last_goal_crossed and is_instance_valid(sound): sound.play("funded")
 	return result.ok
 
@@ -294,8 +302,8 @@ func _replace_route(index: int) -> void:
 	dispose_replay()
 	ReplayPresentation.dispose_catalog(replay_catalog)
 	replay_timeline.begin({})
-	camera_policy.reset(); last_camera_sample.clear(); replay_sample.clear()
-	finish_reason=""; settlement_activity.clear(); accepted_contact.clear()
+	camera_policy.reset(); last_camera_sample.clear(); replay_sample.clear(); replay_events.clear(); replay_receipt_cursor=0
+	finish_reason=""; last_claim_improvement=0; settlement_activity.clear(); accepted_contact.clear()
 	wall_clock.rebase(); presentation_delta=0; record_clock=0
 	sound.set_replay_audio(false)
 	rules.reset(); replay_frames.clear(); replay_actors.clear(); particles.clear(); claim_events.clear()
@@ -783,6 +791,7 @@ func finish_run(reason: String="manual") -> void:
 	finish_reason=reason
 	record_frame()
 	if not last_camera_sample.is_empty(): replay_timeline.capture_camera(last_camera_sample.time-crash_start_time,last_camera_sample.transform,last_camera_sample.fov,"final",crash_clock)
+	replay_events=claim_events.duplicate(true)
 	replay_timeline.seal(crash_clock)
 	traffic_final_states.clear()
 	for car in world.traffic: traffic_final_states.append(car.snapshot())
@@ -791,6 +800,7 @@ func finish_run(reason: String="manual") -> void:
 	time_rate=1; impact_left=0
 	if is_instance_valid(aim_marker): aim_marker.visible=false
 	result_was_best = rules.score > best_scores[level_index]
+	last_claim_improvement=maxi(0,rules.score-int(records_store.durable_snapshot.best_scores[level_index]))
 	records_store.record_claim(level_index, rules.score)
 	sync_records_state()
 	consume_secured_events()
@@ -832,18 +842,25 @@ func record_frame() -> void:
 		actors[id]=body.global_transform; present[id]=true
 	for actor in replay_actors: transforms.append(actor.global_transform if is_instance_valid(actor) else Transform3D.IDENTITY)
 	var state: Dictionary={"actors":actors,"present":present,"visual":visual,"transforms":transforms,"camera":camera.global_transform,"fov":camera.fov,"time":crash_clock,"score":rules.score,"speed":skater.speed(),"damage":damage_states,"limbs":rules.limb_damage.duplicate(),"traffic":traffic_states,"boosts":boosts}
-	if replay_timeline.capture_actors(crash_clock,state): replay_frames=replay_timeline.actor_frames()
+	if replay_timeline.capture_actors(crash_clock,state):
+		if not replay_frames.is_empty() and is_equal_approx(float(replay_frames.back().time),crash_clock): replay_frames[replay_frames.size()-1]=state
+		else: replay_frames.append(state)
 
 func start_replay() -> void:
 	if not action_allowed("replay") or not replay_timeline.can_play(): return
 	_cancel_held_actions()
-	phase=Phase.REPLAY; replay_clock=0; camera_style=0; camera_policy.reset()
+	replay_live_camera={"transform":camera.global_transform,"fov":camera.fov,"style":camera_style,"target":camera_target,"shake":camera_shake,"policy":camera_policy}
+	replay_live_claims=hud.claim_entries.duplicate(true)
+	replay_receipt_cursor=0; hud.claim_entries.clear()
+	phase=Phase.REPLAY; replay_clock=0; camera_style=0; camera_policy=CrashCameraPolicy.new()
 	hud.results.visible=false; hud.live_chrome.visible=true; hud.replay_banner.visible=true
 	Engine.time_scale=1.0; time_rate=1
 	hud.power_panel.visible=false; freeze_actors()
 	replay_visibility.clear()
 	for prop in world.props:
 		if is_instance_valid(prop): replay_visibility[prop]=prop.visible; prop.visible=false
+	for particle in particles:
+		if is_instance_valid(particle.mesh): replay_visibility[particle.mesh]=particle.mesh.visible; particle.mesh.visible=false
 	replay_visibility[skater]=skater.visible; skater.visible=false; skater.set_process(false)
 	replay_presentation.create(level_root,replay_catalog,{"hat_index":selected_hat,"offsets":skater.offsets})
 	replay_sample=replay_timeline.sample_actors(0); replay_presentation.apply(replay_sample)
@@ -851,6 +868,12 @@ func start_replay() -> void:
 	hud.toast("CINEMATIC REPLAY / C CHANGE VIEW")
 
 func dispose_replay() -> void:
+	if not replay_live_camera.is_empty() and is_instance_valid(camera):
+		camera.global_transform=replay_live_camera.transform; camera.fov=replay_live_camera.fov
+		camera_style=replay_live_camera.style; camera_target=replay_live_camera.target; camera_shake=replay_live_camera.shake
+		camera_policy=replay_live_camera.policy
+		if is_instance_valid(hud): hud.claim_entries=replay_live_claims.duplicate(true)
+	replay_live_camera.clear(); replay_live_claims.clear()
 	replay_presentation.dispose()
 	for actor in replay_visibility:
 		if is_instance_valid(actor): actor.visible=bool(replay_visibility[actor])
@@ -874,9 +897,8 @@ func _process(delta: float) -> void:
 	if phase==Phase.REPLAY:
 		replay_clock+=real_delta*.72
 		if replay_clock>=replay_timeline.duration:
-			_cancel_held_actions(); dispose_replay(); camera_policy.reset()
+			_cancel_held_actions(); dispose_replay()
 			phase=Phase.RESULTS; hud.replay_banner.visible=false; hud.show_results(rules,level_index,result_was_best)
-			update_camera(real_delta)
 		else:
 			replay_sample=replay_timeline.sample_actors(replay_clock)
 			replay_presentation.apply(replay_sample)
@@ -885,6 +907,11 @@ func _process(delta: float) -> void:
 				camera.global_transform=recorded.transform; camera.fov=recorded.fov
 			else: update_camera(real_delta)
 			hud.update_game(rules,"REPLAY",replay_sample.speed,0,replay_sample.boosts,0,false)
+			while replay_receipt_cursor<replay_events.size() and float(replay_events[replay_receipt_cursor].time)<=replay_clock:
+				var event: Dictionary=replay_events[replay_receipt_cursor]
+				var label: String=Rules.limb_title(event.part) if event.type=="injury" else str(event.part).to_upper()
+				hud.claim_event(label,event.payout,event.type=="injury")
+				replay_receipt_cursor+=1
 			hud.score_label.text="$"+Rules.money(replay_sample.score)
 		return
 	update_camera(real_delta)

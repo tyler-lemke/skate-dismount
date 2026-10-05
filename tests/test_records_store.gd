@@ -49,6 +49,7 @@ func run() -> void:
 	protection_cases()
 	failure_cases()
 	recovery_cases()
+	recovery_continuation_cases()
 	inaccessible_case()
 	changed_primary_cases()
 	reopen_cases()
@@ -192,6 +193,35 @@ func recovery_cases() -> void:
 	check(FileAccess.get_file_as_bytes(fresh.quarantine_path) == fresh_original and fresh.consume_contribution_event().get("amount") == 123, "fresh recovery preserves exact rejected bytes and acknowledges earned contribution")
 	check(not fresh.recover_fresh().ok and fresh.retry().ok and fresh.consume_contribution_event().is_empty(), "accepted recovery cannot repeatedly reset or credit")
 	cold_case(fresh_path,"fresh")
+
+func recovery_continuation_cases() -> void:
+	# A selected but not yet written backup is the contribution baseline for
+	# every continuation, including preference/claim commits that do not call retry.
+	for continuation in ["preferences","new_claim"]:
+		var original:PackedByteArray="known damaged bytes / pending recovery".to_utf8_buffer()
+		var path:String=fixture("recovery_continue_"+continuation)
+		write_bytes(path,original)
+		var backup:PackedByteArray='{"version":2,"best_scores":[600000,0,0],"legacy_scores":[7,8,9],"muted":false,"hat":0}'.to_utf8_buffer()
+		write_bytes(path+".bak",backup)
+		var store=start(path)
+		store.inject_failure("temp_open")
+		check(not store.recover_backup().ok and store.recovery_pending() and store.fund_total()==0,"selected recovery remains unacknowledged after temporary-open failure: "+continuation)
+		check(FileAccess.get_file_as_bytes(path)==original and FileAccess.get_file_as_bytes(store.quarantine_path)==original,"failed selected recovery retains exact primary and preserved bytes: "+continuation)
+		var expected_total:int=600000
+		if continuation=="preferences":
+			check(store.set_preferences(true,2).ok,"ordinary preference commit continues authorized recovery")
+			check(store.consume_contribution_event().is_empty(),"restored already-funded backup yields no preference contribution or ending")
+		else:
+			expected_total+=42
+			check(store.record_claim(1,42).ok,"new claim commit continues authorized recovery")
+			var event:Dictionary=store.consume_contribution_event()
+			check(event.get("amount")==42 and not event.get("goal_crossed",true),"new claim credits only earned 42 above selected already-funded backup")
+		check(store.fund_total()==expected_total and not store.pending_save and not store.recovery_pending(),"continuation acknowledges complete known candidate: "+continuation)
+		check(store.retry().ok and store.consume_contribution_event().is_empty(),"repeated continuation retry emits no duplicate money or ending: "+continuation)
+		var reopened=start(path)
+		check(reopened.fund_total()==expected_total and reopened.durable_snapshot.legacy_scores==[7,8,9],"independent reopened candidate retains backed-up amount/history: "+continuation)
+		check(reopened.session_candidate.muted==(continuation=="preferences") and reopened.session_candidate.hat==(2 if continuation=="preferences" else 0),"independent reopened preferences match continuation: "+continuation)
+		check(FileAccess.get_file_as_bytes(path+".bak")==backup and FileAccess.get_file_as_bytes(store.quarantine_path)==original,"continuation preserves independent backup and rejected bytes: "+continuation)
 
 func inaccessible_case() -> void:
 	var path: String = fixture("initially_unreadable", '{"version":2,"best_scores":[100000,500000,0],"legacy_scores":[8,9,10],"muted":true,"hat":2}')
