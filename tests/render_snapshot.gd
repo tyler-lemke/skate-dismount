@@ -195,6 +195,6 @@ func run() -> void:
 	var env:Environment=game.world.root.find_children("*","WorldEnvironment",true,false)[0].environment
 	var data:Dictionary={"meshes":meshes,"instances":instances,"gui":gui,"camera":matrix(game.camera.global_transform),"fov":game.camera.fov,"width":1440,"height":900,"background":rgba(env.background_color),"level":level,"mode":mode,"score":game.rules.score,"renderer":"Blender validation of exported Godot scene"}
 	var file:=FileAccess.open("res://builds/scene_%d_%s.json"%[level+1,mode],FileAccess.WRITE);file.store_string(JSON.stringify(data));file.close()
-	print("SCENE_EXPORT: ",level+1," ",mode," ",instances.size()," instances")
+	print("SCENE_EXPORT: ",level+1," ",mode," ",instances.size()," instances; ",fixtures.artifact_path("scene_%d_%s.json"%[level+1,mode]))
 	game.queue_free();await process_frame;await process_frame;game=null
 	quit()

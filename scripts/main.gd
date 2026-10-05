@@ -37,7 +37,11 @@ var slow_motion: bool = false
 var best_scores: Array[int] = [0,0,0]
 var legacy_scores: Array[int] = [0,0,0]
 var muted: bool = false
-var save_path: String = "user://records.json"
+const DEFAULT_RECORDS_PATH: String = "user://records.json"
+var save_path: String = DEFAULT_RECORDS_PATH
+var records_path_source: String = "user-default"
+var startup_error: String = ""
+var startup_records_read_path: String = ""
 var particles: Array[Dictionary] = []
 var replay_frames: Array[Dictionary] = []
 var replay_actors: Array[Node3D] = []
@@ -78,14 +82,11 @@ var heading: float = 0.0
 func _ready() -> void:
 	process_mode=Node.PROCESS_MODE_ALWAYS
 	rng.seed=90210
-	for arg in OS.get_cmdline_user_args():
-		if arg=="--test-mode": test_mode=true; save_path="res://builds/test_records.json"
-		if arg=="--demo": automate=true
-		if arg=="--self-check": automate=true;self_check=true
-		if arg=="--capture": capture_mode=true; automate=true
-		if arg.begins_with("--level="): pending_level=clampi(int(arg.split("=")[1]),0,2)
-	if capture_mode: save_path="res://builds/capture_records.json"
-	if self_check: save_path=OS.get_executable_path().get_base_dir()+"/self_check_records.json"
+	if not configure_startup(OS.get_cmdline_user_args()):
+		push_error("STARTUP: "+startup_error)
+		get_tree().quit(2)
+		return
+	startup_records_read_path = save_path
 	load_records()
 	camera=Camera3D.new(); camera.fov=58; camera.near=.15; camera.far=250; add_child(camera); camera.current=true
 	hud=HUD.new(); hud.process_mode=Node.PROCESS_MODE_ALWAYS; add_child(hud)
@@ -105,6 +106,49 @@ func _ready() -> void:
 	sound=Sound.new(); add_child(sound); sound.set_muted(muted)
 	select_route(pending_level)
 	if automate: start_ready()
+
+func configure_startup(arguments: PackedStringArray) -> bool:
+	# Resolve the selected profile before the first read. Test modes never replace it.
+	var explicit_path: String = ""
+	var explicit_count: int = 0
+	startup_error = ""
+	for arg in arguments:
+		if arg == "--test-mode": test_mode = true
+		if arg == "--demo": automate = true
+		if arg == "--self-check": automate = true; self_check = true
+		if arg == "--capture": capture_mode = true; automate = true
+		if arg.begins_with("--level="):
+			pending_level = clampi(int(arg.get_slice("=",1)),0,2)
+		if arg == "--records-path":
+			startup_error = "Use --records-path=<absolute filename>."
+			return false
+		if arg.begins_with("--records-path="):
+			explicit_count += 1
+			explicit_path = arg.trim_prefix("--records-path=")
+			if explicit_path.is_empty() or not explicit_path.is_absolute_path() or explicit_path.begins_with("res://") or explicit_path.begins_with("user://") or explicit_path.get_file().is_empty():
+				startup_error = "Records override must be an absolute filename."
+				return false
+	if explicit_count > 1:
+		startup_error = "Only one records override is allowed."
+		return false
+	if explicit_count == 1:
+		save_path = explicit_path.simplify_path()
+		records_path_source = "cli"
+	elif save_path != DEFAULT_RECORDS_PATH and not save_path.is_empty():
+		records_path_source = "injected"
+	elif test_mode or capture_mode or self_check:
+		var mode: String = "selfcheck" if self_check else ("capture" if capture_mode else "test")
+		var directory: String = ProjectSettings.globalize_path("res://builds/test_runs/direct-%s-%s-%s" % [mode,OS.get_process_id(),Time.get_ticks_usec()])
+		var error: Error = DirAccess.make_dir_recursive_absolute(directory)
+		if error != OK:
+			startup_error = "Cannot create isolated records directory (error %s)." % error
+			return false
+		save_path = directory.path_join("records.json")
+		records_path_source = mode+"-default"
+	else:
+		save_path = DEFAULT_RECORDS_PATH
+		records_path_source = "user-default"
+	return true
 
 func load_records() -> void:
 	if not FileAccess.file_exists(save_path): return
