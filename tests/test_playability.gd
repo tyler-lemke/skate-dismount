@@ -187,10 +187,7 @@ func run() -> void:
 		check(property_signatures.size() >= 2,"starting lane changes the physical property handoff sequence on route "+str(route+1))
 		check(variation >= .15,"starting lane changes payout by at least fifteen percent on route "+str(route+1))
 		report.routes.append({"route":route+1,"payout_variation":variation,"distinct_event_sequences":signatures.size(),"runs":outcomes})
-	var unassisted_best_sum: int = game.fund_total()
-	report["unassisted_best_claim_sum"] = unassisted_best_sum
-	report["treatment_goal"] = WreckRules.TREATMENT_GOAL
-	check(unassisted_best_sum >= WreckRules.TREATMENT_GOAL,"measured unassisted route claims can reach treatment funding")
+	report["full_charge_best_claim_sum"] = game.fund_total()
 	var poses: Array[Dictionary] = []
 	for pose in range(3): poses.append(await physical_run(0,0.0,pose))
 	for a in range(3):
@@ -205,6 +202,12 @@ func run() -> void:
 	check(injury_difference >= 20.0,"tuck versus starfish redistributes at least twenty measured injury-severity points")
 	report["tuck_starfish_injury_difference"] = injury_difference
 	report.poses = poses
+	# All demonstrated unassisted choices count toward route mastery. A partial
+	# charge with a different pose can beat the full-charge approach above.
+	var unassisted_best_sum: int = game.fund_total()
+	report["unassisted_best_claim_sum"] = unassisted_best_sum
+	report["treatment_goal"] = WreckRules.TREATMENT_GOAL
+	check(unassisted_best_sum >= WreckRules.TREATMENT_GOAL,"measured unassisted route claims can reach treatment funding")
 	await replay_and_bank_checks()
 	await boost_checks()
 	report.checks = checks

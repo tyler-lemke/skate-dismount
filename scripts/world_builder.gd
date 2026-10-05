@@ -61,9 +61,12 @@ func build(parent: Node3D, level_index: int, owner_game: Node) -> void:
 			box(Vector3(x,sy+.7,z),Vector3(.09,1.4,.09),"steel")
 		beam(Vector3(x,h+1.4,0),Vector3(x,1.4,length),.075,"steel")
 		beam(Vector3(x,h+.85,0),Vector3(x,.85,length),.04,"accent")
-	static_box("Crash plaza",Vector3(0,-.25,length+9),Vector3(34,.5,18),"concrete")
-	# Flat cross-road continues through genuine curb openings; no invisible wrap.
-	static_box("Traffic cross road",Vector3(0,-.25,length+6.5),Vector3(76,.5,10),"asphalt")
+	# One continuous support hull prevents coplanar slab edges from catching
+	# a car's slightly compressed floor contact as it enters the plaza.
+	static_box("Traffic cross road",Vector3(0,-.25,length+9),Vector3(76,.5,18),"asphalt")
+	# Separate apron surfaces also remove the old overlapping road/plaza faces.
+	box(Vector3(0,.0015,length+.75),Vector3(34,.003,1.5),"concrete")
+	box(Vector3(0,.0015,length+14.75),Vector3(34,.003,6.5),"concrete")
 	static_box("Containment at end",Vector3(0,4.0,length+18),Vector3(36,8.0,.8),"ink")
 	label_3d("END OF THE LINE",Vector3(0,5.5,length+17.58),.75,level.color,Vector3(0,PI,0))
 	label_3d("THANK YOU FOR YOUR COLLATERAL",Vector3(0,4.3,length+17.57),.26,Color("eff5ec"),Vector3(0,PI,0))
@@ -72,8 +75,9 @@ func build(parent: Node3D, level_index: int, owner_game: Node) -> void:
 		static_box("Plaza lower curb",Vector3(x,.45,length+15),Vector3(.5,.9,6),"ink")
 	for x in range(-30,31,4):
 		box(Vector3(x,.015,length+5.35),Vector3(1.6,.025,.08),"yellow")
-	for lane_z in [3.7,7.0]:
-		label_3d("TRAFFIC  >>>",Vector3(9,.035,length+lane_z),.18,level.color,Vector3(-PI/2,0,0))
+	label_3d("TRAFFIC  >>>",Vector3(9,.035,length+3.7),.18,level.color,Vector3(-PI/2,0,0))
+	label_3d("TAXI QUEUE",Vector3(2,.035,length+6.0),.14,level.color,Vector3(-PI/2,0,0))
+	label_3d("<<<  ONCOMING",Vector3(9,.035,length+8.3),.18,level.color,Vector3(-PI/2,0,0))
 	# Start-line runway, arrow inlays, and readable track branding.
 	for z in [-14,-10,-6,-2]:
 		for x in [-2.5,0,2.5]:
@@ -138,8 +142,10 @@ func populate_props() -> void:
 		for step in range(9,14): spawn("domino",3.3,step*level.run+.5)
 		for step in [14,20]:
 			for side in [-1,1]:
+				# Keep the outside traffic approach clear of the fitted forearm hull.
+				var stack_x: float=side*3.25+(.30 if side<0 else 0.0)
 				for layer in range(3):
-					for offset in [-.52,.52]: spawn("crate",side*3.25+offset,step*level.run+.5,layer*1.05)
+					for offset in [-.52,.52]: spawn("crate",stack_x+offset,step*level.run+.5,layer*1.05)
 		for step in [17,23]:
 			for x in [-3.25,0,3.25]: spawn("barrel",x,step*level.run+.5)
 	elif index == 1:
@@ -163,7 +169,12 @@ func populate_props() -> void:
 				for layer in range(3): spawn("crate",x,step*level.run+.5,layer*1.05)
 		for step in [14,21,29,36]:
 			for x in [-3.3,0,3.3]: spawn("barrel",x,step*level.run+.5)
-		for x in [-5.2,-2.6,0,2.6,5.2]: spawn("barrel",x,level.steps*level.run+2)
+		# Clear the outside landing while keeping this drum in the cargo avalanche.
+		for x in [-4.8,-2.6,0,2.6,5.2]: spawn("barrel",x,level.steps*level.run+2)
+		# The heavy taxi needs a nearby light relay to reach the drum/cargo line.
+		# Its first relay clears the taxi by .14m and catches a glancing strike;
+		# downstream relays offer a second path into the existing step14 drum.
+		for step in range(10,14): spawn("domino",4.6 if step==10 else 3.4,step*level.run+.5)
 	# Leave the outside approach strips clear, including the launch apron.
 	for x in [-2.0,2.0]: spawn("cone",x,-1.4)
 	for x in [-5.6,5.6]: spawn("barrier",x,level.steps*level.run+11)
@@ -211,12 +222,13 @@ func spawn(kind: String, x: float, z: float, stack: float = 0) -> CrashProp:
 func populate_traffic() -> void:
 	var length: float = level.steps * level.run
 	# Finite launch-relative fleet. Waiting in READY never advances these encounters.
-	# Civic: passing lanes and a staggered rank. Market: an authored turning lane.
-	# Port: a diagonal approach and narrow terminal gate. All retain physical momentum.
+	# A drives the near lane, B waits in the middle, and C passes in opposition.
+	# Healthy hulls clear each other; a struck B can slide into C's moving lane.
+	# Market keeps its authored turn; Port keeps its diagonal terminal merge.
 	var specs: Array = [
-		[{"x":-19.0,"z":3.7,"speed":5.5,"dir":1},{"x":-20.0,"z":7.0,"speed":6.0,"dir":1},{"x":4.0,"z":9.0,"speed":0.0,"dir":1}],
-		[{"x":-18.0,"z":3.7,"speed":4.2,"dir":1},{"x":-27.0,"z":7.0,"speed":7.0,"dir":1},{"x":1.5,"z":10.0,"speed":0.0,"dir":1,"yaw":.35}],
-		[{"x":-25.0,"z":2.5,"speed":5.8,"dir":1},{"x":-27.0,"z":7.0,"speed":6.5,"dir":1},{"x":3.0,"z":10.0,"speed":0.0,"dir":1,"yaw":PI*.25}]
+		[{"x":-21.0,"z":3.7,"speed":6.5,"dir":1},{"x":2.0,"z":6.0,"speed":0.0,"dir":1},{"x":25.0,"z":8.3,"speed":4.0,"dir":-1}],
+		[{"x":-23.0,"z":3.7,"speed":6.0,"dir":1},{"x":2.0,"z":6.0,"speed":0.0,"dir":1},{"x":25.0,"z":8.3,"speed":4.0,"dir":-1}],
+		[{"x":-27.0,"z":4.3,"speed":6.5,"dir":1},{"x":2.0,"z":6.0,"speed":0.0,"dir":1},{"x":25.0,"z":8.3,"speed":4.0,"dir":-1}]
 	][index]
 	for spec in specs:
 		var car := TrafficCar.new()
