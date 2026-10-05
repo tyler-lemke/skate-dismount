@@ -2,11 +2,11 @@
 
 A three-level skateboard crash game in Godot, with original Blender models and audio. Build speed, choreograph a ragdoll fall, and connect dominoes, carts, cargo towers, explosive drums, and moving traffic. Your score is an **insurance payout**. Mom needs cancer treatment; your absurd fictional stunt policy is your last shot at funding it.
 
-**Play:** extract `builds/StairWreck-macOS.zip` and open `StairWreck.app`, or double-click `Play.command` in this workspace. The universal Intel / Apple Silicon macOS app includes the engine. Godot and Blender are not required to play. macOS 11 or later.
+**Current repaired source:** double-click `Play.command` in this workspace, with Godot 4.7.2 installed. The original `builds/StairWreck.app` and `builds/StairWreck-macOS.zip` are historical v3.0 artifacts. The current candidate and verification are tracked in [repair status](docs/repair/RUNNING.md).
 
 ![The treatment fund and Civic route](docs/screenshots/level_1_menu_validation.png)
 
-These are Blender validation renders of actual Godot runtime geometry and interface bounds. A native display was unavailable; they are not native Godot screenshots. See [validation](docs/VALIDATION.md).
+These are historical v3.0 Blender renders of actual Godot runtime geometry and interface bounds. Native screenshots of the repair candidate remain unavailable. See [current repair evidence](docs/repair/evidence/R12.md) and [historical validation](docs/VALIDATION.md).
 
 ## Make the next landing count
 
@@ -53,21 +53,23 @@ At the foot of the stairs, Civic has staggered passing lanes, Night Market has a
 
 The **$600,000 treatment fund** accumulates the best claim from each route. Better retries bank only the improvement; weaker retries never reduce savings. The game shows the current claim's potential contribution before settlement. Funding treatment produces a story ending, and all routes remain available for mastery. Mom's notes change by chapter. Cancer is the sincere stake; the insurer and exaggerated crashes supply the comedy.
 
-Preferences, hats, and claim records persist locally. Old version-1 arcade records are retained separately and do not pre-fund the new story.
+Preferences, hats, and claim records persist locally. Pending claims remain distinct from secured funds if a save fails; the results screen offers Retry Save and protected-profile recovery. Old version-1 arcade records are retained separately and do not pre-fund the new story.
 
 ## Design and verification
 
 The redesign follows research into [Porrasturvat's physics tuning](https://www.flipcode.com/archives/08-06-2003.shtml), [Stair Dismount's impact spectacle](https://apps.apple.com/us/app/stair-dismount/id326469137), and [Burnout CRASH's strategic high-value targets and pinball inspiration](https://news.ea.com/press-releases/press-releases-details/2011/EA-and-Criterion-Games-Announce-Burnout-CRASH/default.aspx). See [research and designer competition](docs/DESIGN_RESEARCH.md).
 
-Automated checks exercise real Godot rigid bodies, event dispatch, collisions, articulated poses, damage presentation, replay, input focus, progression, save migration, UI geometry, and audio resources. The telemetry checks whether decisions change physical outcomes and whether the campaign is attainable. They do **not** establish human enjoyment. See [measured results and limits](docs/VALIDATION.md).
+All 31 mandatory runtime suites pass, with 10,807 checks and zero failures. Checks exercise real Godot rigid bodies, event dispatch, collisions, articulated poses, damage presentation, replay, input focus, progression, save recovery, UI geometry, and audio resources. A fresh keys-only campaign reaches $623,887 without injected money or physical impulses. These measurements do **not** establish human enjoyment. See [repair notes](docs/repair/REPAIR_NOTES.md), [current results](docs/repair/evidence/R12.md) and [ordinary-control campaign](docs/repair/evidence/R12_good_play.md).
 
 ```sh
 ./tools/test.sh
-./tools/build_macos.sh
-./tools/check_package.sh
 ```
 
-Open `project.godot` in Godot to develop. Tested with Godot 4.7.2 and the Compatibility renderer. The app uses the installed official universal Godot binary and an exported PCK; its download is larger than a dedicated release-template export.
+The default check includes strict editor import. This environment denies Godot's user/editor snapshot writes, so its failed import is retained separately. `GODOT_BIN=/opt/homebrew/bin/godot ./tools/test.sh --runtime-only` explicitly tests the runtime against checked existing import-cache bytes. Each run writes its own result under `builds/test_runs/`; unexpected errors and leaks fail the run even if a test prints a passing summary.
+
+The candidate builder takes a complete stable runtime result and the actual import evidence. See [packaging method and commands](docs/repair/evidence/R13-builder.md). The historical `build_macos.sh` and `check_package.sh` target the old public bundle; they are not the repair candidate pipeline.
+
+Open `project.godot` in Godot to develop. Tested with Godot 4.7.2 and the Compatibility renderer. Packaged candidates include the official universal Godot binary and a runtime PCK; downloads are larger than dedicated release-template exports. Native rendered performance and audibility remain unverified because the desktop service fails to start.
 
 The editable studios are `blender/stair_wreck_assets.blend` and `blender/hero.blend`, with 19 GLB exports. `blender/build_assets.py` regenerates the core kit; `blender/build_hats.py` adds the designer hats; `blender/build_hero_assets.py` creates the weighted rider, detailed board, and taxi with rotating wheel pivots and a local dent morph. They ran through **Blender MCP in background mode**. `tools/generate_audio.py` and `tools/generate_traffic_audio.py` synthesize all 15 audio assets without external samples. `tests/render_snapshot.gd` exports posed runtime scene geometry and UI bounds for `blender/render_validation.py`.
 

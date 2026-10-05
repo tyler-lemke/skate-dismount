@@ -1,5 +1,7 @@
 # Validation record — 3.0
 
+This is the historical v3.0 record. The repaired source now passes all 31 runtime suites and 10,807 checks; see the [current repair evidence](repair/evidence/R12.md) and [execution status](repair/RUNNING.md). The images and payouts below belong to v3.0 and have not been regenerated as native screenshots of the repair candidate.
+
 The updated three-level game was checked with **Godot 4.7.2 on macOS**. Models and validation previews were generated through **Blender MCP in background mode**, using Blender 5.2.2 and CPU rendering. The universal macOS app includes the engine, so Godot and Blender are not required to play.
 
 ## Completed behavior and automated checks

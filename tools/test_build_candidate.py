@@ -2,7 +2,8 @@
 """Candidate verifier controls using real disposable archives/files.
 
 These are deliberate corrupt package fixtures, not packaged-game success proof.
-No preserved public artifact is modified and no engine process is launched.
+No preserved public artifact is modified. One real focused RULES run verifies
+that a successful custom registry cannot qualify the mandatory build gate.
 """
 
 import datetime
@@ -168,6 +169,38 @@ class CandidateControls(unittest.TestCase):
         self.assertEqual(caller.returncode, 1)
         self.assertIn("manifest identifies a different candidate path", caller.stderr)
 
+    def test_actual_focused_success_cannot_qualify_mandatory_registry(self):
+        directory = ARTIFACTS / "actual focused registry"
+        directory.mkdir()
+        registry = directory / "focused.json"
+        canonical_registry = candidate.PROJECT / "tools/test_suites.json"
+        entries = run_bounded.load_registry(canonical_registry, candidate.PROJECT)
+        run_bounded.write_json(registry, entries[:1])
+        caller = subprocess.run([str(candidate.PROJECT / "tools/test.sh"), "--runtime-only", "--registry", str(registry),
+                                 "--timeout-seconds", "10"], cwd=candidate.PROJECT,
+                                env={**os.environ, "GODOT_BIN": self.actual_engine["path"], "PYTHONDONTWRITEBYTECODE": "1"},
+                                capture_output=True, text=True, timeout=30)
+        (directory / "focused.output.log").write_text(caller.stdout + caller.stderr)
+        self.assertEqual(caller.returncode, 0, caller.stdout + caller.stderr)
+        result_line = next(line for line in caller.stdout.splitlines() if "registered suites passed;" in line)
+        result_path = Path(result_line.split("; result ", 1)[1])
+        focused = json.loads(result_path.read_text())
+        self.assertTrue(focused["success"])
+        self.assertEqual(focused["completed_suites"], 1)
+        self.assertEqual(focused["input_source_digest"]["sha256"], run_bounded.source_digest(candidate.PROJECT)["sha256"])
+        self.rejects("canonical mandatory suite registry", lambda: candidate.runtime_registry_contract(focused))
+        build_caller = subprocess.run([sys.executable, str(candidate.PROJECT / "tools/build_candidate.py"), "build",
+                                      "--runtime-result", str(result_path)], capture_output=True, text=True, timeout=10)
+        (directory / "build-refusal.output.log").write_text(build_caller.stdout + build_caller.stderr)
+        self.assertEqual(build_caller.returncode, 1)
+        self.assertIn("canonical mandatory suite registry", build_caller.stderr)
+        full_path = candidate.PROJECT / "builds/test_runs/20261005T051559.600205Z-51497-135e97ea/result.json"
+        candidate.runtime_registry_contract(json.loads(full_path.read_text()))
+        run_bounded.write_json(directory / "evidence.json", {"focused_result": str(result_path),
+           "focused_result_sha256": candidate.sha256(result_path), "focused_success": True,
+           "focused_checks": focused["total_checks"], "mandatory_build_refused": True,
+           "canonical_contract_positive_report": str(full_path)})
+
     def test_missing_runtime_member(self):
         directory, app, expected = self.fixture("missing member")
         archive = self.archive(directory, app, omit=candidate.APP_NAME + "/Contents/MacOS/StairWreck.pck")
@@ -285,6 +318,47 @@ class CandidateControls(unittest.TestCase):
         self.assertEqual(len(actual["bounded_checks"]),1)
         self.assertTrue(next(iter(actual["bounded_checks"].values()))["timed_out"])
 
+    def test_repeat_standalone_archive_crc_failure_revokes_current_pass_labels(self):
+        directory, app, report = self.serialized_pack_fixture("qualified archive actual CRC failure")
+        candidate.verify_outputs(directory, report)
+        report.update({"success": True, "runtime_check_id": "prior-control-only",
+                       "candidate_status": "candidate_headless_and_storage_verified_native_pending",
+                       "packaged_runtime_status": "passed", "normal_packaged_persistence": "passed", "archive_verified": True,
+                       "validation_scope": "candidate_archive_headless_runtime_and_isolated_bookkeeping_only",
+                       "packaged_routes": [{"scope": "prior disposable control state; no game claim"}]})
+        archive = directory / candidate.ZIP_NAME
+        with zipfile.ZipFile(archive) as source:
+            info = source.infolist()[0]
+        with archive.open("r+b") as stream:
+            stream.seek(info.header_offset)
+            header = stream.read(30)
+            name_len, extra_len = struct.unpack_from("<HH", header, 26)
+            stream.seek(info.header_offset + 30 + name_len + extra_len)
+            byte = stream.read(1)
+            stream.seek(-1, os.SEEK_CUR)
+            stream.write(bytes([byte[0] ^ 0x40]))
+        # Refresh only the archive digest so the real CRC check must reject it.
+        report["zip"] = candidate.file_entry(archive, candidate.ZIP_NAME)
+        run_bounded.write_json(directory / "manifest.json", report)
+        caller = subprocess.run([sys.executable, str(candidate.PROJECT / "tools/build_candidate.py"), "verify",
+                                 "--candidate", str(directory)], capture_output=True, text=True, timeout=10)
+        (directory / "caller.output.log").write_text(caller.stdout + caller.stderr)
+        self.assertEqual(caller.returncode, 1)
+        self.assertIn("CRC/structure", caller.stderr)
+        actual = json.loads((directory / "manifest.json").read_text())
+        self.assertFalse(actual["success"])
+        self.assertFalse(actual["archive_verified"])
+        self.assertEqual(actual["candidate_status"], "candidate_archive_verification_failed")
+        self.assertEqual(actual["validation_scope"], "candidate_archive_verification_failed")
+        self.assertEqual(actual["packaged_runtime_status"], "not_rechecked_by_verify")
+        self.assertEqual(actual["normal_packaged_persistence"], "not_rechecked_by_verify")
+        self.assertNotIn("packaged_routes", actual)
+        self.assertNotIn("runtime_check_id", actual)
+        previous = actual["archive_verification_history"][0]
+        self.assertTrue(previous["success"])
+        self.assertEqual(previous["runtime_check_id"], "prior-control-only")
+        self.assertEqual(previous["candidate_status"], "candidate_headless_and_storage_verified_native_pending")
+
     def test_source_mutation_during_construction(self):
         path = ARTIFACTS / "mutated authored input.gd"
         path.write_text("before\n")
@@ -314,6 +388,25 @@ class CandidateControls(unittest.TestCase):
         bad = ARTIFACTS / "false import success.json"
         run_bounded.write_json(bad, altered)
         self.rejects("import status contradicts", lambda: candidate.import_evidence(bad))
+
+    def test_actual_packaged_records_state_marker_is_not_completion(self):
+        path=candidate.PROJECT / "builds/candidates/f236cc82018fb54172cdcf8b9465b3bfb4f36339de1cdb9ee9d6fdf542f92e73-20261005T051131.502615Z-1f21c626/logs/3ac000a1_external_packaged_records_write.output.log"
+        before=candidate.sha256(path)
+        output=path.read_text()
+        self.assertTrue(runner_errors := run_bounded.inspect_output(output,"PACKAGED_RECORDS")["errors"])
+        self.assertTrue(any("malformed completion marker" in error for error in runner_errors))
+        corrected=output.replace("PACKAGED_RECORDS_STATE: ","PACKAGED_RECORDS_STATE=")
+        result=run_bounded.inspect_output(corrected,"PACKAGED_RECORDS")
+        self.assertFalse(result["errors"])
+        self.assertEqual(result["summaries"][0]["name"],"PACKAGED_RECORDS")
+        self.assertEqual(result["summaries"][0]["checks"],9)
+        state_line=next(line for line in corrected.splitlines() if line.startswith("PACKAGED_RECORDS_STATE="))
+        state=json.loads(state_line[len("PACKAGED_RECORDS_STATE="):])
+        self.assertIn("packaged checks",state["selected_path"])
+        self.assertEqual(state["durable_total"],100000)
+        self.assertEqual(candidate.sha256(path),before)
+        for bad in (corrected+"\nSCRIPT ERROR: parser control\n",corrected+"\nPACKAGED_RECORDS: 1 checks, 0 failures\n"):
+            self.assertTrue(run_bounded.inspect_output(bad,"PACKAGED_RECORDS")["errors"])
 
     def test_real_single_architecture_engine_rejected(self):
         directory = ARTIFACTS / "actual thin engine control"
@@ -382,6 +475,6 @@ if __name__ == "__main__":
         "success": outcome.wasSuccessful(), "tests_run": outcome.testsRun,
         "failures": [{"test": str(test), "detail": detail} for test, detail in outcome.failures],
         "errors": [{"test": str(test), "detail": detail} for test, detail in outcome.errors],
-        "artifacts": str(ARTIFACTS), "scope": "candidate verifier corrupt file/archive controls; no packaged-game or native acceptance"})
+        "artifacts": str(ARTIFACTS), "scope": "candidate verifier corrupt file/archive and actual focused-registry controls; no packaged-game or native acceptance"})
     print(f"Candidate control artifacts: {ARTIFACTS}")
     sys.exit(0 if outcome.wasSuccessful() else 1)

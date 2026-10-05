@@ -165,6 +165,31 @@ def engine_matches_report(identity, report):
             "integration report lacks a stable engine executable identity")
 
 
+def runtime_registry_contract(report, project=PROJECT):
+    """A focused successful run cannot qualify the mandatory integration gate."""
+    registry = (project / "tools/test_suites.json").resolve()
+    require(isinstance(report.get("registry"), str) and Path(report["registry"]).resolve() == registry,
+            "runtime report did not use the canonical mandatory suite registry")
+    require(report.get("registry_sha256") == sha256(registry), "runtime mandatory registry digest differs")
+    entries = run_bounded.load_registry(registry, project)
+    require(report.get("expected_suites") == entries, "runtime expected suites differ from the mandatory registry")
+    outcomes = report.get("suites")
+    require(report.get("success") is True and not report.get("errors") and
+            report.get("completed_suites") == len(entries) and isinstance(outcomes, list) and len(outcomes) == len(entries),
+            "runtime report did not complete every mandatory suite successfully")
+    for entry, outcome in zip(entries, outcomes):
+        require(isinstance(outcome, dict) and outcome.get("script") == entry["script"] and
+                outcome.get("expected_summary") == entry["summary"], "runtime suite order/script/summary differs from mandatory registry")
+        require(outcome.get("success") is True and outcome.get("exit_code") == 0 and not outcome.get("errors") and
+                not outcome.get("timed_out") and not outcome.get("interrupted"),
+                f"mandatory runtime suite did not pass: {entry['summary']}")
+        summaries = outcome.get("summaries")
+        require(isinstance(summaries, list) and len(summaries) == 1 and isinstance(summaries[0], dict) and
+                summaries[0].get("name") == entry["summary"] and type(summaries[0].get("checks")) is int and
+                summaries[0]["checks"] > 0 and type(summaries[0].get("failures")) is int and summaries[0]["failures"] == 0,
+                f"mandatory runtime suite lacks one positive completion: {entry['summary']}")
+
+
 def stable_inputs(before, after, engine_before, engine_after):
     require(before == after, "source or existing import cache changed during construction")
     require(engine_before == engine_after, "engine executable changed during construction")
@@ -449,6 +474,7 @@ def build(args):
     require(PROJECT == args.project_dir.resolve(), "this builder targets its own workspace only")
     runtime_path = args.runtime_result.resolve()
     runtime = json.loads(runtime_path.read_text(encoding="utf-8"))
+    runtime_registry_contract(runtime)
     current_runtime_digest = run_bounded.source_digest(PROJECT)["sha256"]
     require(runtime.get("success") is True and runtime.get("input_source_digest", {}).get("sha256") == current_runtime_digest and
             runtime.get("input_source_digest_after") == current_runtime_digest, "source differs from successful stable runtime integration report")
@@ -530,6 +556,31 @@ def build(args):
     print(f"CANDIDATE: {report['candidate_status']}; manifest {directory / 'manifest.json'}")
     print(f"CANDIDATE: build ID {report['build_id']}; ZIP SHA-256 {report['zip']['sha256']}; extracted app {report['extracted_app']}")
     return 0
+
+
+def verify_archive(directory, report, timeout):
+    previous = {key: report[key] for key in ("success", "candidate_status", "archive_verified", "runtime_check_id",
+                "packaged_runtime_status", "normal_packaged_persistence", "packaged_routes", "external_asset_probe",
+                "normal_records_probe", "validation_scope", "error") if key in report}
+    report.setdefault("archive_verification_history", []).append(previous)
+    for key in ("runtime_check_id", "packaged_routes", "external_asset_probe", "normal_records_probe", "error"):
+        report.pop(key, None)
+    report.update({"success": False, "archive_verified": False, "candidate_status": "candidate_archive_verification_running",
+                   "packaged_runtime_status": "not_rechecked_by_verify", "normal_packaged_persistence": "not_rechecked_by_verify",
+                   "validation_scope": "candidate_archive_revalidation_pending"})
+    run_bounded.write_json(directory / "manifest.json", report)
+    try:
+        require(report.get("candidate_directory") == str(directory), "manifest identifies a different candidate path")
+        report["archive_verification"] = verify_outputs(directory, report)
+        extract_and_verify(directory, report, timeout)
+    except (CandidateError, OSError, ValueError, KeyError) as exc:
+        report.update({"success": False, "archive_verified": False, "candidate_status": "candidate_archive_verification_failed",
+                       "validation_scope": "candidate_archive_verification_failed", "error": str(exc)})
+        run_bounded.write_json(directory / "manifest.json", report)
+        raise
+    report.update({"success": True, "candidate_status": "candidate_archive_verified_runtime_pending",
+                   "validation_scope": "candidate_archive_integrity_only"})
+    run_bounded.write_json(directory / "manifest.json", report)
 
 
 def check_runtime(directory, report, timeout):
@@ -620,8 +671,8 @@ def check_records(directory, report, timeout, executable, check_root, cwd, check
                            [str(executable), "--headless", "--fixed-fps", "60", "--script", str(probe),
                             "--log-file", str(case_dir / "engine.log"), "--", "--probe-case=" + case,
                             "--records-path=" + str(records)], directory, timeout, expected="PACKAGED_RECORDS", cwd=cwd)
-        markers = [line.strip()[len("PACKAGED_RECORDS_STATE: "):] for line in output.splitlines()
-                   if line.strip().startswith("PACKAGED_RECORDS_STATE: ")]
+        markers = [line.strip()[len("PACKAGED_RECORDS_STATE="):] for line in output.splitlines()
+                   if line.strip().startswith("PACKAGED_RECORDS_STATE=")]
         require(len(markers) == 1, f"packaged normal records case {case} lacks exact state evidence")
         state = json.loads(markers[0])
         require(state.get("case") == case and state.get("selected_path") == str(records) and state.get("read_path") == str(records),
@@ -669,11 +720,10 @@ def main(argv=None):
     directory = args.candidate.resolve()
     try:
         report = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
-        require(report.get("candidate_directory") == str(directory), "manifest identifies a different candidate path")
         if args.command == "verify":
-            verify_outputs(directory, report)
-            extract_and_verify(directory, report, args.timeout_seconds)
+            verify_archive(directory, report, args.timeout_seconds)
         else:
+            require(report.get("candidate_directory") == str(directory), "manifest identifies a different candidate path")
             check_runtime(directory, report, args.timeout_seconds)
     except (CandidateError, OSError, ValueError, KeyError) as exc:
         print(f"CANDIDATE: {args.command} failed: {exc}", file=sys.stderr)

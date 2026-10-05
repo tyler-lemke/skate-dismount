@@ -1,7 +1,9 @@
-# R13 candidate builder preparation
+# R13 candidate builder and verifier evidence
 
 This document records builder and verifier preparation, not R13 completion or an
-accepted release. No candidate app/ZIP has been constructed by this preparation.
+accepted release. An initial private candidate was constructed and retained with
+its actual failed storage-wrapper result; the final frozen-source candidate is
+recorded separately below when its checks complete.
 The preserved public `builds/StairWreck.app` and `builds/StairWreck-macOS.zip` are
 untouched. Root owns final R13 evidence and all promotion/native gates.
 
@@ -12,6 +14,11 @@ R01 runtime integration report. It compares current project and import-cache
 digests to the actual report and requires the same engine version/executable SHA.
 The report now records engine identity before/after and cache inventory before/after.
 A runtime-only run rejects changes to its existing import cache.
+Build qualification additionally requires the canonical `tools/test_suites.json`
+path, current registry SHA, normalized expected entries, and every mandatory suite
+in exact order with successful, positive-check, zero-failure completion. A
+successful focused custom registry does not qualify the build. Per-run deadline
+overrides remain valid.
 
 The build method is explicitly `runtime_pckpacker/from_existing_import_cache` and
 `clean_import_verified=false`. It never requests editor initialization, import, or
@@ -83,7 +90,7 @@ session and no secured contribution, explicit parent repair and retry with no
 duplicate credit, v1 migration without legacy funding, and protected future
 profile bytes. Python independently reads the resulting durable profiles.
 These are bookkeeping fixtures, not physical crash provenance or native play.
-They have parsed successfully but have not yet run against a final candidate.
+Their final actual candidate results are recorded separately below.
 
 Manifest statuses distinguish archive-only completion from headless runtime and
 isolated storage completion. `r13_acceptance_complete` remains false for root's
@@ -93,6 +100,10 @@ Each runtime recheck first revokes the current runtime/storage success labels,
 keeps the previous summary as history, and gives actual bounded logs unique check
 IDs. A failed recheck records the actual current failure and cannot retain the
 previous passing validation scope.
+Standalone archive verification also revokes current qualification before checks,
+saves it as history, and persists an explicit archive-verification failure on any
+error. A successful new extraction has archive-only status and requires a new
+runtime/storage check; it does not retain the prior qualified runtime status.
 
 ## Actual preparation evidence
 
@@ -101,15 +112,15 @@ previous passing validation scope.
   This includes strict default import failure versus explicit runtime-only labels,
   mandatory registry extensions, exact certificate adjacency, diagnostic failures,
   early/wrong/missing/duplicate summaries, bounded hangs and descendant cleanup.
-- Candidate verifier controls: 25 tests passed, artifacts at
-  `builds/candidate_controls/20261005T033231.529485Z-8df9378e/result.json`.
+- Candidate verifier controls: 28 tests passed, artifacts at
+  `builds/candidate_controls/20261005T052500.927324Z-6c7010d4/result.json`.
   Real disposable archive controls reject CRC corruption, stale archive/app bytes,
   missing/extra runtime members, traversal/absolute/backslash paths, symlinks,
   duplicate members, external manifest ZIP digest changes, wrong supplied candidate
   path, bad plist/build identity, non-executable mode, PCK changes, source mutation,
   changed engine identity, actual lipo-thinned arm64 engine, and bounded hanging child.
   The preserved baseline PCK is read independently; only a disposable copy is
-  corrupted. No engine or packaged-game success is inferred from these fixtures.
+  corrupted. No packaged-game success is inferred from these corrupt fixtures.
   Actual installed Mach-O metadata is read per architecture's macOS OS load
   command, excluding unrelated source/dylinker version fields: arm64 minimum11.0
   and x86_64 minimum10.13, declared maximum11.0. Valid AppleDouble metadata and
@@ -125,6 +136,14 @@ previous passing validation scope.
   repeat check of a disposable hanging child times out and removes previous
   passing runtime/storage labels while preserving the old summary. These remain
   verifier controls, never packaged-game evidence.
+  One actual focused public runner invocation passes RULES (170 checks) with the
+  same current source digest, then the actual build CLI refuses its custom
+  registry. An actual CLI archive recheck of a disposable previously qualified
+  fixture rejects CRC corruption and persists false/current archive-failed labels
+  while preserving the old qualification in history. The state-marker control
+  reads the preserved actual failed packaged log; the corrected `STATE=` marker
+  no longer collides with strict suite completion detection, and errors/duplicate
+  completions still fail.
 - Actual runtime PCKPacker smoke with installed Godot 4.7.2: `PACK: 284 checks,
   0 failures`, 141 staged entries independently verified in an ordinary format-4
   PCK. Artifacts at

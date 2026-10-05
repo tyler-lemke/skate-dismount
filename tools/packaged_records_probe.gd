@@ -77,7 +77,7 @@ func run() -> void:
 			check(FileAccess.get_file_as_bytes(selected_records) == preserved, "future profile bytes survive normal packaged save request exactly")
 		_:
 			check(false, "known probe case required")
-	print("PACKAGED_RECORDS_STATE: ", JSON.stringify({"case":probe_case,"selected_path":game.records_store.selected_path,
+	print("PACKAGED_RECORDS_STATE=", JSON.stringify({"case":probe_case,"selected_path":game.records_store.selected_path,
 		"read_path":game.startup_records_read_path,"best_scores":game.best_scores,"legacy_scores":game.legacy_scores,
 		"durable_total":game.fund_total(),"session_total":game.records_store.session_fund_total(),
 		"pending":game.records_store.pending_save,"muted":game.muted,"hat":game.selected_hat,
