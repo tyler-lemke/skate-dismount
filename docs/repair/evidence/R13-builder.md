@@ -2,8 +2,8 @@
 
 This document records builder and verifier preparation, not R13 completion or an
 accepted release. An initial private candidate was constructed and retained with
-its actual failed storage-wrapper result; the final frozen-source candidate is
-recorded separately below when its checks complete.
+its actual failed storage-wrapper result. The final frozen-source candidate
+completed its archive, headless runtime, and isolated bookkeeping checks below.
 The preserved public `builds/StairWreck.app` and `builds/StairWreck-macOS.zip` are
 untouched. Root owns final R13 evidence and all promotion/native gates.
 
@@ -122,8 +122,8 @@ runtime/storage check; it does not retain the prior qualified runtime status.
   The preserved baseline PCK is read independently; only a disposable copy is
   corrupted. No packaged-game success is inferred from these corrupt fixtures.
   Actual installed Mach-O metadata is read per architecture's macOS OS load
-  command, excluding unrelated source/dylinker version fields: arm64 minimum11.0
-  and x86_64 minimum10.13, declared maximum11.0. Valid AppleDouble metadata and
+  command, excluding unrelated source/dylinker version fields: arm64 minimum 11.0
+  and x86_64 minimum 10.13, declared maximum 11.0. Valid AppleDouble metadata and
   invalid opaque metadata are also exercised with actual disposable ZIPs.
   The original strict failed-import report at
   `builds/test_runs/20261005T021641.874148Z-5053-b6376428/result.json` is read as a
@@ -154,6 +154,90 @@ runtime/storage check; it does not retain the prior qualified runtime status.
 - Packaged records probe parse: helper exit 0 at
   `builds/repair_work/R13/records-probe-parse/output.log.result.json`; no game/storage
   execution or final-candidate acceptance is claimed.
+
+## Actual final frozen-source candidate
+
+The final public runner invocation completed all 31 mandatory suites with 10,807
+checks and zero failures. Its scope is `runtime_suites_only` and its import status
+is `not_run_runtime_only`. Exact result:
+`builds/test_runs/20261005T052525.893099Z-52125-28f61817/result.json`, SHA-256
+`c40a57e2a7b0373e298272f5a4fef5b28ed0ae112d04d24e2fa8ed92060588f9`.
+Before/after source digest is
+`4d20e15387061ba5f4865d484dea2beb4cd6cbe87193d90e0dd8ce00ed5ebfc7`;
+cache digest is
+`a754a19fb2e1bc7f2563996cba8e8a509c144cf847ec2c94ebd03543b345b58b`;
+canonical registry SHA is
+`64e610d23605184ef73e5439f00525ab33353f20613d617170ca4136abb80340`.
+The same installed Godot executable identity was stable before/after:
+351,312,912 bytes, SHA
+`c7cccbf8fb143e34e02fd6521e09be2c2b974f0d5db080b19071c9c570718ccf`.
+
+Actual `build --check-runtime` returned zero for private directory
+`builds/candidates/f6434bb1219b2b27c0638961f6b00b13d2deb1ed157271fcba7d05f455bfe4bb-20261005T052800.141632Z-ab4472e9/`.
+Its full canonical build ID is
+`f6434bb1219b2b27c0638961f6b00b13d2deb1ed157271fcba7d05f455bfe4bb`.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `StairWreck-macOS.zip` | 173269671 | `38754b8ce557ae1670f0304fa1a70541ce3e7f9c62d403ca49530b3193110f96` |
+| `StairWreck.app/Contents/MacOS/StairWreck.pck` | 7786080 | `94e822e202985a5d194fa57181dee27063f42e0cd7f369c5b3bfdf40a25864cd` |
+| Signed bundled executable | 350329232 | `4607575fee32c6f898632231f73f0f9ce68ac397b316abaeaf7611cee3446ea6` |
+
+At builder completion the external `manifest.json` SHA was
+`4c2511ec7c34093f6364154c47f22eb9e0eb432db798c67d7377c02f1daf52af`.
+The fresh actual extraction is `extracted candidate 79a47fa4/StairWreck.app`
+inside that directory. ZIP CRC/path/member checks, all eight app files/modes,
+142 PCK entries, embedded identity, deep strict signatures, universal architecture,
+and declared macOS minimum 11.0 passed. Actual packing reports `PACK: 286 checks,
+0 failures`. All 22 bounded build/package process results passed with no
+unexpected diagnostics.
+
+The extracted executable ran from `packaged checks cafaf996/unrelated empty cwd`
+with no source project mounted. The exact packaged route completions were:
+
+| Requested level | Reported level | Score | Wrecks | Explosions | Frames |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 | 1 | 193148 | 32 | 4 | 201 |
+| 1 | 2 | 100329 | 22 | 7 | 322 |
+| 2 | 3 | 254145 | 36 | 8 | 224 |
+
+The external asset probe passed 19 models / 15 audio, 11 hero bones, and taxi morph
+checks. Seven fresh ordinary-records processes passed 83 checks total, every
+state reporting `test_mode=false` and `self_check=false`. Independent Python
+reads confirmed normal `[100000,0,0]`, failed-write/repair/retry `[0,150000,0]`, and
+migrated `[0,0,250000]` durable scores. Normal/retry profiles persist mute=true and
+hat 2; migrated profiles persist mute=true, hat 1 and non-funding legacy
+`[111,222,333]`. Cold restarts reproduce these states without duplicate credit.
+The unsupported version99 profile remains byte-identical, SHA
+`c0679183456ed7c0672a4b3bf36681dfee32449770ff63bf0cda8f2cfa25716c`.
+All profiles and actual transcripts remain inside `packaged checks cafaf996/`.
+
+The manifest records success=true,
+`candidate_headless_and_storage_verified_native_pending`, and
+`candidate_archive_headless_runtime_and_isolated_bookkeeping_only`;
+archive/runtime/normal isolated persistence are passed. `clean_import_verified`
+and the producer-owned `r13_acceptance_complete` remain false. Root independently
+reviewed the exact archive/app/PCK bytes, all 22 bounded results, seven normal
+processes, four durable profiles, and current source/cache identity. Root's
+acceptance is a separate `root_acceptance.json` beside the unchanged manifest,
+bound to that manifest SHA, build ID, ZIP and PCK hashes. Its scope is the existing
+cache, headless runtime, and isolated bookkeeping gates. R13 closure uses that
+receipt; it does not alter the producer manifest or supply native acceptance.
+Native presentation/input/render/audio/performance, both-CPU execution,
+oldest-OS execution, and quarantined launch remain unverified.
+
+The failed initial candidate
+`f236cc82018fb54172cdcf8b9465b3bfb4f36339de1cdb9ee9d6fdf542f92e73-20261005T051131.502615Z-1f21c626`
+and its strict storage-wrapper rejection are preserved. Its JSON `STATE:` line
+contained the phrase `packaged checks` in a path and collided with strict summary
+detection. The narrow `STATE=` fix and actual-log negative control resolved that
+wrapper defect without weakening completion/error policy or rewriting old logs.
+
+The public 3.0 ZIP and PCK still match the original preserved bytes and hashes:
+ZIP 171197676 / `a558b85b00dacbb9f264c563ce028f73ab7e1d4d446bb81d15720ab2e5bd1ae4`;
+PCK 3562592 / `77a4074084da1aa8b6286cffaf4467dbc70db667a35cbf56d30a80937f407f03`.
+The original strict editor-import failure result/log hashes above are unchanged
+and included separately as historical failed evidence in the candidate manifest.
 
 ## Primary API/source basis
 
