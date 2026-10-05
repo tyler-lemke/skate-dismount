@@ -127,6 +127,7 @@ func run() -> void:
  check(rider.visuals.shin_r.position.y>kicking.y+.10,"recovery lifts the pushing foot clear")
  check(rider.visuals.shin_l.position.is_equal_approx(planted),"front foot remains planted through the push cycle")
  rider.pose_ride(.6,.3,10,false)
+ rider.sync_skin()
  var before: PackedVector3Array = vertices(body,rider.skin.skeleton)
  var frames: Dictionary = {}
  for key in rider.visuals: frames[key]=rider.visuals[key].global_transform
@@ -165,6 +166,7 @@ func run() -> void:
   group.add_child(other)
   other.set_pose(style)
   other.pose_ride(.2,-.4,13,false)
+  other.sync_skin()
   var other_mesh: MeshInstance3D
   for candidate in other.skin.skin_meshes:
    if str(candidate.name)=="HeroSkin":other_mesh=candidate

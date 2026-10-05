@@ -11,6 +11,7 @@ var last_receipt: int = -100000
 var last_metal: int = -100000
 var last_squeal: int = -100000
 var last_horn: int = -100000
+var replay_audio: bool = false
 func _ready() -> void:
 	# The audio controller must observe pause changes even while gameplay nodes stop.
 	process_mode=Node.PROCESS_MODE_ALWAYS
@@ -28,11 +29,14 @@ func _process(_delta: float) -> void:
 	var paused: bool=get_tree().paused
 	if is_instance_valid(roll): roll.stream_paused=paused
 	if is_instance_valid(traffic_engine): traffic_engine.stream_paused=paused
+	for player in pool:
+		if is_instance_valid(player): player.stream_paused=paused
 
 func set_muted(muted: bool) -> void:
 	AudioServer.set_bus_mute(0,muted)
 
 func play(key: String) -> void:
+	if replay_audio: return
 	if not sounds.has(key) or pool.is_empty(): return
 	var now: int=Time.get_ticks_msec()
 	if key=="receipt":
@@ -63,12 +67,14 @@ func play(key: String) -> void:
 	player.play()
 
 func update_roll(speed: float, rolling: bool) -> void:
-	if not is_instance_valid(roll): return
+	if not is_instance_valid(roll) or replay_audio: return
+	if rolling and not roll.playing: roll.play()
 	roll.volume_db=lerpf(roll.volume_db,-12+speed*.17 if rolling else -60,.12)
 	roll.pitch_scale=.7+speed*.035
 
 func update_traffic(cars: Array, focus: Vector3) -> void:
-	if not is_instance_valid(traffic_engine): return
+	if not is_instance_valid(traffic_engine) or replay_audio: return
+	if not cars.is_empty() and not traffic_engine.playing: traffic_engine.play()
 	var presence: float=0.0
 	var closest_speed: float=0.0
 	for car in cars:
@@ -83,7 +89,8 @@ func update_traffic(cars: Array, focus: Vector3) -> void:
 			presence=contribution
 			closest_speed=speed
 	var target_db: float=-60.0 if presence<=.01 else -35.0+presence*15.0
-	var step: float=maxf(.001,get_process_delta_time())*35.0
+	var wall_delta: float = float(get_parent().get("presentation_delta"))
+	var step: float=maxf(0,wall_delta)*35.0
 	traffic_engine.volume_db=move_toward(traffic_engine.volume_db,target_db,step)
 	traffic_engine.pitch_scale=lerpf(traffic_engine.pitch_scale,clampf(.73+closest_speed*.045,.7,1.2),.10)
 
@@ -94,3 +101,13 @@ func _exit_tree() -> void:
 	for player in pool:
 		if is_instance_valid(player): player.stop(); player.stream=null
 	pool.clear(); sounds.clear()
+
+func set_replay_audio(active: bool) -> void:
+	replay_audio = active
+	if not active: return
+	# Replay has music only. Action loops and old one-shots cannot leak from the
+	# filed live attempt into historical playback.
+	if is_instance_valid(roll): roll.stop(); roll.volume_db = -60
+	if is_instance_valid(traffic_engine): traffic_engine.stop(); traffic_engine.volume_db = -60
+	for player in pool:
+		if is_instance_valid(player): player.stop()

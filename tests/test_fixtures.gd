@@ -4,6 +4,7 @@ extends RefCounted
 # subcase rewrites this file before startup or uses a separate child process.
 const EMPTY_RECORD: Dictionary = {"version":2,"best_scores":[0,0,0],"legacy_scores":[0,0,0],"muted":false,"hat":0}
 const OBSERVATION_PREFIX: String = "STARTUP_OBSERVATION: "
+const ControlledWall = preload("res://tests/controlled_wall_clock.gd")
 var records_path: String = ""
 var directory: String = ""
 var error: String = ""
@@ -54,15 +55,20 @@ func write_records(data: Dictionary = EMPTY_RECORD) -> bool:
 	file.close()
 	return true
 
-func prepare(game: Node, data: Dictionary = EMPTY_RECORD, preserve_existing: bool = false) -> bool:
+func prepare(game: Node, data: Dictionary = EMPTY_RECORD, preserve_existing: bool = false, controlled_wall: bool = true) -> bool:
 	if not error.is_empty(): return false
 	if not preserve_existing and not write_records(data): return false
 	inject(game,records_path)
+	if controlled_wall:
+		var clock = ControlledWall.new()
+		clock.name = "ControlledFixtureWallClock"
+		game.wall_clock = clock
+		game.add_child(clock)
 	return true
 
-func create_game(parent: Node, data: Dictionary = EMPTY_RECORD, preserve_existing: bool = false) -> Node3D:
+func create_game(parent: Node, data: Dictionary = EMPTY_RECORD, preserve_existing: bool = false, controlled_wall: bool = true) -> Node3D:
 	var game: Node3D = load("res://scenes/main.tscn").instantiate()
-	if not prepare(game,data,preserve_existing):
+	if not prepare(game,data,preserve_existing,controlled_wall):
 		game.free()
 		parent.get_tree().quit(1)
 		return null

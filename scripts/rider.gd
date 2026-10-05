@@ -16,6 +16,8 @@ var visuals: Dictionary = {}
 var limbs: Array[RagdollLimb] = []
 var joints: Array[Joint3D] = []
 var ragdoll: bool = false
+var bail_frames: Dictionary = {}
+var bail_anchors: Dictionary = {}
 var torso: RagdollLimb
 var game: Node
 var pose: float = 0.0
@@ -52,6 +54,8 @@ func _ready() -> void:
 		if key != "board": hide_legacy_meshes(visuals[key])
 	pose_ride(0.0, 0.0)
 	set_hat(hat_index)
+	reset_physics_interpolation()
+	sync_skin()
 
 func attach_hat(head_model: Node3D) -> void:
 	var previous: Node = head_model.get_node_or_null("CrashHat")
@@ -83,10 +87,12 @@ func model_key(key: String) -> String:
 	return key
 
 func _process(_delta: float) -> void:
-	sync_skin()
+	# Render is the sole recurring bone-pose owner. Immediate resets/export use
+	# the public simulation sync explicitly, never as a second physics callback.
+	sync_skin(true)
 
-func sync_skin() -> void:
-	if skin != null: skin.sync_parts(body_parts if ragdoll else visuals)
+func sync_skin(use_interpolated: bool = false) -> void:
+	if skin != null: skin.sync_parts(body_parts if ragdoll else visuals, use_interpolated)
 
 func hide_legacy_meshes(node: Node) -> void:
 	if node is MeshInstance3D: node.visible = false
@@ -141,12 +147,13 @@ func pose_ride(time: float, steer: float, speed: float = 0.0, pushing: bool = fa
 		visuals["shin_"+side].basis = visuals.board.basis
 		pose_anchors["knee_"+side] = knee
 		foot_contacts[side] = {"planted": contact, "sole": ankle + visuals.board.basis * Vector3(0,-.266,.07)}
-	sync_skin()
 
 func set_pose(index: int) -> void:
 	if ragdoll: return
 	pose_index = clampi(index, 0, 2)
 	pose_ride(0.0, 0.0)
+	reset_physics_interpolation()
+	sync_skin()
 
 func place_segment(key: String, start: Vector3, finish: Vector3) -> void:
 	var part: Node3D = visuals[key]
@@ -210,12 +217,17 @@ func apply_launch_pose(steer: float) -> void:
 func bail(velocity: Vector3, lift: float = 3.5) -> void:
 	if ragdoll: return
 	ragdoll = true
+	bail_frames.clear()
+	bail_anchors.clear()
+	for key in visuals: bail_frames[key] = visuals[key].global_transform
+	for key in pose_anchors: bail_anchors[key] = to_global(pose_anchors[key])
 	var parent: Node = get_parent()
 	var body_map: Dictionary = {}
 	for key in offsets:
 		var limb := RagdollLimb.new()
 		limb.name = key
 		limb.limb_name = key
+		limb.set_meta("stable_id", "rider/" + key)
 		limb.game = game
 		limb.mass = 11.0 if key == "torso" else (6.0 if key == "pelvis" else 2.0)
 		if key == "board": limb.mass = 2.0
@@ -233,7 +245,8 @@ func bail(velocity: Vector3, lift: float = 3.5) -> void:
 		mesh.name = "RiderModel"
 		limb.add_child(mesh)
 		parent.add_child(limb)
-		limb.global_transform = visuals[key].global_transform
+		limb.global_transform = bail_frames[key]
+		limb.reset_physics_interpolation()
 		limb.linear_velocity = velocity + Vector3(0, lift, 0)
 		limb.angular_velocity = Vector3([4.2, 1.0, .35][pose_index], 0.0, -velocity.x * 0.18)
 		if key == "board":
@@ -352,3 +365,7 @@ func launch_impulse(direction: Vector3, strength: float = 9.0) -> void:
 		if is_instance_valid(body) and body.limb_name != "board":
 			body.apply_central_impulse(impulse * body.mass)
 	if is_instance_valid(torso): torso.apply_torque_impulse(Vector3(1.0, 0, -aim.x * .6) * torso.mass)
+
+func presentation_focus_position() -> Vector3:
+	if ragdoll and is_instance_valid(torso): return torso.get_global_transform_interpolated().origin
+	return get_global_transform_interpolated().origin + Vector3(0,1,0)

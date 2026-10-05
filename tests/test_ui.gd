@@ -106,7 +106,7 @@ func run() -> void:
 	verify(game.hud.claim_panel)
 	game.hud.update_game(game.rules,"CRASH",26,0,0,11,false)
 	check(game.hud.boost_label.text=="CRASHBREAKER / SPENT" and game.hud.aim_label.text.contains("CHARGE SPENT"),"spent crashbreaker cannot look ready or recharging")
-	game.skater.damage_states={"shin_r":45.0}
+	game.replay_sample={"limbs":{"shin_r":45.0}}
 	game.hud.update_game(game.rules,"REPLAY",26,0,0,11,false)
 	check(game.hud.injury_panel.visible,"injury file remains visible in replay")
 	check(not game.hud.injury_details.visible and game.hud.injury_panel.size.y==230,"replay retains the compact injury display")

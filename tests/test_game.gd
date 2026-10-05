@@ -51,12 +51,14 @@ func run() -> void:
 		check(is_equal_approx(Engine.time_scale,1),"pause restores unscaled interface clock")
 		game.toggle_pause()
 		check((is_equal_approx(Engine.time_scale,.55) or is_equal_approx(Engine.time_scale,.18)) and not game.slow_motion,"resume restores crash pacing without sticky Tab")
+		key(KEY_TAB,false)
 		check(game.boosts==1,"one crashbreaker is available at bail")
 		key(KEY_SHIFT,true)
 		await frames(5)
 		var velocity:Vector3=game.skater.torso.linear_velocity
 		key(KEY_SHIFT,true)
 		check(game.boosts==0 and game.skater.torso.linear_velocity==velocity,"single crashbreaker exhausted; repeated input has no effect")
+		key(KEY_SHIFT,false)
 		budget=0
 		while game.phase!=game.Phase.RESULTS and budget<3000:
 			await frames(1);budget+=1
@@ -84,6 +86,11 @@ func run() -> void:
 	prop.activate(Vector3(0,15,30));await frames(120)
 	check(prop.broken and game.rules.destroyed>0,"activated prop physically tumbles into scored chain")
 	var score:int=game.rules.score;prop.shatter();check(game.rules.score==score,"broken body remains physical but does not rescore")
+	# The exact persistence oracle starts from its own empty cold fixture. Earlier
+	# physical best claims must retain their R02 monotonic durable maxima.
+	game.unpause();game.queue_free();await process_frame;await process_frame
+	game=fixtures.create_game(root)
+	if game == null: return
 	game.best_scores.assign([12345,23456,34567]);game.muted=true;game.save_records()
 	game.best_scores.assign([0,0,0]);game.muted=false;game.load_records()
 	check(game.best_scores==[12345,23456,34567] and game.muted,"records and audio preference round trip")

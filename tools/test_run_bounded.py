@@ -62,6 +62,13 @@ class RunnerControls(unittest.TestCase):
         self.assertEqual(result["summaries"][0]["checks"], 7)
         self.assertIn("fixture stderr", Path(result["log"]).read_text())
 
+    def test_generic_command_allows_external_probe_telemetry_but_rejects_errors(self):
+        # The pre-existing external asset probe has its own non-suite count format.
+        output = "PACKAGED_ASSETS: 19 models / 15 audio; 0 failures\n"
+        self.assertEqual(run_bounded.inspect_output(output)["errors"], [])
+        self.assertTrue(run_bounded.inspect_output(output + "ERROR: probe failed\n")["errors"])
+        self.assertTrue(run_bounded.inspect_output(output, "PACKAGED_ASSETS")["errors"])
+
     def test_early_zero_exit(self):
         self.fixture("early_zero_exit", "")
 
@@ -230,31 +237,50 @@ class RunnerControls(unittest.TestCase):
             "import json,pathlib,sys\n"
             "args=sys.argv[1:]\n"
             "if '--version' in args: print('argv fixture engine 1');sys.exit(0)\n"
-            "if '--import' in args: sys.exit(0)\n"
+            "if '--import' in args:\n"
+            "    if pathlib.Path('import_error').exists(): print('ERROR: unexpected import fixture error')\n"
+            "    sys.exit(0)\n"
             "spec=json.loads(pathlib.Path(args[args.index('--script')+1]).read_text())\n"
             "if spec['mode']=='missing': print('fixture exited early');sys.exit(0)\n"
             "name='FIXTURE_01' if spec['mode']=='wrong' else spec['summary']\n"
             "print(name+': 1 checks, 0 failures')\n", encoding="utf-8")
         engine.chmod(0o755)
-        for mode in ("success", "missing", "wrong"):
+        for mode in ("success", "missing", "wrong", "import_failure", "runtime_only"):
             with self.subTest(mode=mode):
-                (project / registry[-1]["script"]).write_text(json.dumps({"summary": "FIXTURE_14", "mode": mode}))
+                script_mode = mode if mode in ("missing", "wrong") else "success"
+                (project / registry[-1]["script"]).write_text(json.dumps({"summary": "FIXTURE_14", "mode": script_mode}))
+                if mode == "import_failure":
+                    (project / "import_error").write_text("explicit import error control")
                 before = run_bounded.source_digest(project)["sha256"]
                 caller = subprocess.run([sys.executable, str(HELPER), "suite", "--project-dir", str(project),
-                                         "--engine", str(engine), "--registry", str(registry_path)],
+                                         "--engine", str(engine), "--registry", str(registry_path)] +
+                                        (["--runtime-only"] if mode == "runtime_only" else []),
                                         capture_output=True, text=True, timeout=20)
                 (project / (mode + ".caller.output.log")).write_text(caller.stdout + caller.stderr)
                 results = sorted((project / "builds/test_runs").glob("*/result.json"))
                 report = json.loads(results[-1].read_text())
-                self.assertEqual(caller.returncode, 0 if mode == "success" else 1, caller.stdout + caller.stderr)
-                self.assertEqual(report["success"], mode == "success")
+                success = mode in ("success", "runtime_only")
+                self.assertEqual(caller.returncode, 0 if success else 1, caller.stdout + caller.stderr)
+                self.assertEqual(report["success"], success)
                 self.assertEqual(len(report["expected_suites"]), 14)
-                self.assertEqual(report["completed_suites"], 14)
-                self.assertEqual(report["total_checks"], 14 if mode == "success" else 13)
+                self.assertEqual(report["completed_suites"], 0 if mode == "import_failure" else 14)
+                self.assertEqual(report["total_checks"], 14 if success else (0 if mode == "import_failure" else 13))
                 self.assertEqual(report["input_source_digest"]["sha256"], before)
+                self.assertEqual(report["input_source_digest_after"], before)
                 self.assertEqual(report["engine_version"], "argv fixture engine 1")
+                self.assertEqual(report["engine_executable"], run_bounded.executable_identity(engine))
+                self.assertEqual(report["engine_executable_after"], report["engine_executable"])
+                self.assertEqual(report["input_import_cache_digest_after"], run_bounded.import_cache_digest(project)["sha256"])
+                if mode == "runtime_only":
+                    self.assertEqual(report["import_status"], "not_run_runtime_only")
+                    self.assertEqual(report["validation_scope"], "runtime_suites_only")
+                    self.assertNotIn("import", report)
+                    self.assertIn("runtime suites only (import not run)", caller.stdout)
+                else:
+                    self.assertEqual(report["import_status"], "failed" if mode == "import_failure" else "passed")
+                    self.assertEqual(report["validation_scope"], "import_and_runtime_suites")
                 records = [entry["records_path"] for entry in report["suites"]]
-                self.assertEqual(len(set(records)), 14)
+                self.assertEqual(len(set(records)), 0 if mode == "import_failure" else 14)
                 self.assertTrue(all(str(project / "builds/test_runs" / report["run_id"]) in path for path in records))
 
     def test_duplicate_registry_is_rejected(self):

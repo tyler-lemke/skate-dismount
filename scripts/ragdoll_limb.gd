@@ -20,6 +20,7 @@ func _ready() -> void:
 	physics_material_override = mat
 
 func _physics_process(delta: float) -> void:
+	if not is_instance_valid(game) or not game.is_live(): return
 	cooldown = maxf(0.0, cooldown - delta)
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:

@@ -10,8 +10,12 @@ signal resume_requested
 signal replay_requested
 signal mute_requested
 signal quit_requested
+signal help_requested
+signal pause_requested
 signal help_closed
 signal pose_requested(index: int)
+signal retry_save_requested
+signal recover_requested(use_backup: bool)
 
 const INK := Color("10212d")
 const MINT := Color("84efbc")
@@ -113,7 +117,10 @@ func button(parent: Control, text: String, at: Vector2, dimensions: Vector2, act
 	var focus: StyleBoxFlat=normal.duplicate(); focus.bg_color=Color.TRANSPARENT; focus.border_color=PAPER; focus.set_border_width_all(2)
 	b.add_theme_stylebox_override("normal",normal); b.add_theme_stylebox_override("hover",hover); b.add_theme_stylebox_override("pressed",pressed); b.add_theme_stylebox_override("focus",focus)
 	b.add_theme_color_override("font_color",INK if primary else PAPER); b.add_theme_color_override("font_hover_color",INK if primary else PAPER); b.add_theme_color_override("font_pressed_color",INK if primary else PAPER)
-	b.pressed.connect(action); return b
+	b.pressed.connect(func():
+		if get_parent().hud_owner_allowed(b): action.call()
+	)
+	return b
 
 func build_menu() -> void:
 	menu=section()
@@ -131,7 +138,7 @@ func build_menu() -> void:
 		route_buttons.append(b)
 	best_label=label(menu,"BEST CLAIM  —",Vector2(54,638),Vector2(406,28),15,MUTED)
 	button(menu,"FILE A CLAIM     →",Vector2(54,687),Vector2(406,60),func(): play_requested.emit(),true)
-	button(menu,"HOW TO WRECK",Vector2(54,764),Vector2(245,49),func(): help_panel.visible=true)
+	button(menu,"HOW TO WRECK",Vector2(54,764),Vector2(245,49),func(): help_requested.emit())
 	button(menu,"SOUND",Vector2(311,764),Vector2(149,49),func(): mute_requested.emit())
 	label(menu,"MOM SAYS: COME HOME FOR DINNER.",Vector2(54,840),Vector2(410,22),11,MUTED)
 	panel(menu,Vector2(1044,32),Vector2(364,50),Color(.04,.10,.14,.85))
@@ -181,7 +188,7 @@ func build_hud() -> void:
 	charge_bar.add_theme_stylebox_override("fill",fill); charge_bar.add_theme_stylebox_override("background",bg)
 	label(power_panel,"RELEASE launch   •   A / D lane   •   W push\nSPACE bail   •   SHIFT one crashbreaker",Vector2(21,69),Vector2(535,50),14,MUTED)
 	toast_label=label(live_chrome,"",Vector2(443,104),Vector2(570,44),23,MINT); toast_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
-	button(live_chrome,"II",Vector2(1355,130),Vector2(59,43),func(): get_parent().toggle_pause())
+	button(live_chrome,"II",Vector2(1355,130),Vector2(59,43),func(): pause_requested.emit())
 	replay_banner=label(live_chrome,"REPLAY  /  THE CLAIM IN MOTION",Vector2(441,112),Vector2(568,39),20,MINT); replay_banner.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; replay_banner.visible=false
 	build_injury_file()
 	build_claim_feed()
@@ -454,7 +461,7 @@ func unselected_pose_style() -> StyleBoxFlat:
 	return style
 
 func update_injury_file(rules: WreckRules, replay_snapshot: bool = false) -> void:
-	var severities:Dictionary=get_parent().skater.damage_states if replay_snapshot else rules.limb_damage
+	var severities:Dictionary=get_parent().replay_sample.get("limbs",{}) if replay_snapshot else rules.limb_damage
 	var focus:String=""
 	var maximum:float=0.0
 	for key in LIMB_NAMES:
@@ -532,7 +539,7 @@ func flash() -> void:
 	screen_flash.color.a=.22
 
 func _process(delta: float) -> void:
-	var real_delta:float=delta/maxf(Engine.time_scale,0.05)
+	var real_delta:float=get_parent().presentation_delta
 	if result_reveal_active:
 		result_reveal_time=minf(1.0,result_reveal_time+real_delta/.95)
 		var fraction:float=1.0-pow(1.0-result_reveal_time,3.0)
@@ -547,5 +554,47 @@ func _process(delta: float) -> void:
 	if is_instance_valid(claim_panel): refresh_claim_feed()
 
 func close_help() -> void:
-	help_panel.visible=false
 	help_closed.emit()
+
+func modal_buttons(help: bool) -> Array[Button]:
+	var panel: Control = help_panel if help else pause_panel
+	var controls: Array[Button] = []
+	for node in panel.find_children("*","Button",true,false):
+		if node.is_visible_in_tree() and not node.disabled: controls.append(node)
+	return controls
+
+func focus_modal(help: bool) -> void:
+	var controls: Array[Button] = modal_buttons(help)
+	if controls.is_empty():
+		get_viewport().gui_release_focus()
+		return
+	for index in controls.size():
+		var button: Button = controls[index]
+		button.focus_next = button.get_path_to(controls[(index+1)%controls.size()])
+		button.focus_previous = button.get_path_to(controls[posmod(index-1,controls.size())])
+	controls[0].grab_focus()
+
+func cycle_modal_focus(help: bool, backwards: bool) -> void:
+	var controls: Array[Button] = modal_buttons(help)
+	if controls.is_empty(): return
+	var index: int = controls.find(get_viewport().gui_get_focus_owner())
+	index = posmod(index + (-1 if backwards else 1),controls.size()) if index >= 0 else 0
+	controls[index].grab_focus()
+
+func activate_modal_focus(help: bool) -> void:
+	var controls: Array[Button] = modal_buttons(help)
+	if controls.is_empty(): return
+	var owner: Control = get_viewport().gui_get_focus_owner()
+	if not controls.has(owner):
+		focus_modal(help)
+		owner = get_viewport().gui_get_focus_owner()
+	if owner != null: owner.emit_signal("pressed")
+
+func focus_phase(menu_active: bool, results_active: bool) -> void:
+	var panel: Control = menu if menu_active else (results if results_active else null)
+	if panel != null:
+		for node in panel.find_children("*","Button",true,false):
+			if node.is_visible_in_tree() and not node.disabled:
+				node.grab_focus()
+				return
+	get_viewport().gui_release_focus()

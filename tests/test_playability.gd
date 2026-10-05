@@ -103,8 +103,11 @@ func replay_and_bank_checks() -> void:
 	game.start_replay()
 	await frames(20)
 	check(game.phase == game.Phase.REPLAY,"recorded crash enters replay")
-	var cursor: int = mini(int(game.replay_clock/.05),game.replay_frames.size()-2)
-	check(game.skater.damage_states == game.replay_frames[cursor].limbs,"replay visual injury state matches its recorded timestamp")
+	var cursor: int=0
+	for index in game.replay_frames.size():
+		if float(game.replay_frames[index].time)<=game.replay_clock: cursor=index
+	check(game.replay_presentation.rider.damage_states == game.replay_frames[cursor].limbs,"isolated replay injury appearance matches its actual recorded timestamp")
+	check(game.skater.damage_states == final_limbs,"replay never changes live final limb state")
 	var ticks: int = 0
 	while game.phase == game.Phase.REPLAY and ticks < 3000:
 		await frames(1)
@@ -151,6 +154,7 @@ func boost_checks() -> void:
 		var exhausted: Vector3 = game.skater.torso.linear_velocity
 		key(KEY_SHIFT,true)
 		check(game.boosts == 0 and game.skater.torso.linear_velocity == exhausted,"exhausted boost cannot alter momentum")
+		key(KEY_SHIFT,false)
 	report.boosts = {"left_velocity_delta":changes[0],"right_velocity_delta":changes[1],"difference":changes[1]-changes[0]}
 	check(changes[1]-changes[0] > 4.0,"opposite target choices produce meaningfully different physical impulses")
 

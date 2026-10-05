@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import signal
+import shutil
 import subprocess
 import sys
 import time
@@ -63,7 +64,7 @@ def inspect_output(output, expected_summary=None):
         if marker:
             summaries.append({"name": marker[1], "checks": int(marker[2]),
                               "failures": int(marker[3]), "line": index + 1})
-        elif SUMMARY_CANDIDATE.search(line) or (expected_summary and line.startswith(expected_summary + ":")):
+        elif expected_summary and (SUMMARY_CANDIDATE.search(line) or line.startswith(expected_summary + ":")):
             errors.append(f"line {index + 1}: malformed completion marker: {line}")
     if expected_summary:
         expected = [entry for entry in summaries if entry["name"] == expected_summary]
@@ -213,6 +214,33 @@ def source_digest(project):
     return {"sha256": digest.hexdigest(), "files": manifest}
 
 
+def executable_identity(command):
+    path = Path(shutil.which(str(command)) or str(command)).resolve(strict=True)
+    if not path.is_file():
+        raise ValueError(f"engine executable is not a file: {path}")
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return {"path": str(path), "bytes": path.stat().st_size, "sha256": digest.hexdigest()}
+
+
+def import_cache_digest(project):
+    files = sorted(path for path in (project / ".godot/imported").rglob("*") if path.is_file())
+    classes = project / ".godot/global_script_class_cache.cfg"
+    if classes.is_file():
+        files.append(classes)
+    inventory = []
+    digest = hashlib.sha256()
+    for path in sorted(files):
+        data = ("symlink:" + os.readlink(path)).encode() if path.is_symlink() else path.read_bytes()
+        entry = {"path": path.relative_to(project).as_posix(), "bytes": len(data),
+                 "sha256": hashlib.sha256(data).hexdigest()}
+        inventory.append(entry)
+        digest.update(json.dumps(entry, sort_keys=True).encode("utf-8") + b"\n")
+    return {"sha256": digest.hexdigest(), "files": inventory}
+
+
 def print_result(result):
     sys.stdout.write(Path(result["log"]).read_text(encoding="utf-8", errors="replace"))
     sys.stdout.flush()
@@ -228,6 +256,8 @@ def suite_main(argv):
     parser.add_argument("--registry", type=Path, help="default: tools/test_suites.json in project")
     parser.add_argument("--timeout-seconds", type=timeout_value,
                         help="bounded 10–600 second override for import and every suite (default: 180)")
+    parser.add_argument("--runtime-only", action="store_true",
+                        help="explicitly skip import; success covers runtime suites only")
     args = parser.parse_args(argv)
     project = args.project_dir.resolve()
     registry = (args.registry or project / "tools/test_suites.json").resolve()
@@ -239,11 +269,20 @@ def suite_main(argv):
     run_dir = project / "builds/test_runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     report_path = run_dir / "result.json"
+    begin = time.monotonic()
     report = {"run_id": run_id, "success": False, "engine": args.engine, "engine_version": None,
+              "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              "validation_scope": "runtime_suites_only" if args.runtime_only else "import_and_runtime_suites",
+              "import_status": "not_run_runtime_only" if args.runtime_only else "not_run",
               "registry": str(registry), "registry_sha256": hashlib.sha256(registry.read_bytes()).hexdigest(),
               "timeout_override_seconds": args.timeout_seconds, "input_source_digest": source_digest(project),
+              "input_import_cache_digest": import_cache_digest(project),
               "expected_suites": entries, "suites": [], "run_directory": str(run_dir),
               "result": str(report_path), "errors": []}
+    try:
+        report["engine_executable"] = executable_identity(args.engine)
+    except (OSError, ValueError) as exc:
+        report["errors"].append(str(exc))
     write_json(report_path, report)
     print(f"RUNNER: run {run_id}; artifacts {run_dir}", flush=True)
     version = run_command([args.engine, "--version"], 10, run_dir / "version.output.log", cwd=project)
@@ -253,7 +292,7 @@ def suite_main(argv):
     else:
         report["errors"].append("engine version command failed")
         print_result(version)
-    if not report["errors"]:
+    if not report["errors"] and not args.runtime_only:
         import_dir = run_dir / "import"
         import_dir.mkdir()
         imported = run_command([args.engine, "--headless", "--path", str(project), "--import", "--log-file",
@@ -261,6 +300,7 @@ def suite_main(argv):
                                args.timeout_seconds or DEFAULT_TIMEOUT, import_dir / "output.log",
                                result_path=import_dir / "result.json", cwd=project)
         report["import"] = imported
+        report["import_status"] = "passed" if imported["success"] else "failed"
         print_result(imported)
         if not imported["success"]:
             report["errors"].append("project import failed")
@@ -288,15 +328,26 @@ def suite_main(argv):
     report["input_source_digest_after"] = source_digest(project)["sha256"]
     if report["input_source_digest_after"] != report["input_source_digest"]["sha256"]:
         report["errors"].append("project input sources changed during the run")
+    report["input_import_cache_digest_after"] = import_cache_digest(project)["sha256"]
+    if args.runtime_only and report["input_import_cache_digest_after"] != report["input_import_cache_digest"]["sha256"]:
+        report["errors"].append("project import cache changed during the runtime-only run")
+    try:
+        report["engine_executable_after"] = executable_identity(args.engine)
+        if report.get("engine_executable") != report["engine_executable_after"]:
+            report["errors"].append("engine executable changed during the run")
+    except (OSError, ValueError) as exc:
+        report["errors"].append(str(exc))
     report["completed_suites"] = len(report["suites"])
     report["total_checks"] = sum(marker["checks"] for result in report["suites"] for marker in result["summaries"]
                                  if result["success"] and marker["name"] == result["expected_summary"])
     report["success"] = not report["errors"] and len(report["suites"]) == len(entries) and all(
         result["success"] for result in report["suites"])
     report["finished_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    report["elapsed_seconds"] = round(time.monotonic() - begin, 6)
     write_json(report_path, report)
     if report["success"]:
-        print(f"RUNNER: all {len(entries)} registered suites passed; {report['total_checks']} checks; result {report_path}")
+        scope = "runtime suites only (import not run): all" if args.runtime_only else "import and all"
+        print(f"RUNNER: {scope} {len(entries)} registered suites passed; {report['total_checks']} checks; result {report_path}")
     else:
         print(f"RUNNER: run failed; {len(report['suites'])}/{len(entries)} suites completed; result {report_path}", file=sys.stderr)
     return 0 if report["success"] else 1
