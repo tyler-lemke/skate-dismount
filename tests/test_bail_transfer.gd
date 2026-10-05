@@ -528,7 +528,7 @@ func run() -> void:
 	game = fixtures.create_game(root)
 	if game == null: return
 	energy_counterexamples()
-	check(Engine.physics_ticks_per_second == 90 and int(PhysicsServer3D.space_get_param(game.get_world_3d().space,PhysicsServer3D.SPACE_PARAM_SOLVER_ITERATIONS)) == 32,"production uses90Hz and32 coupled contact/joint passes")
+	check(Engine.physics_ticks_per_second == 90 and int(PhysicsServer3D.space_get_param(game.get_world_3d().space,PhysicsServer3D.SPACE_PARAM_SOLVER_ITERATIONS)) == 64,"production uses90Hz and64 coupled contact/joint passes")
 	game.set_process(false)
 	game.set_physics_process(false)
 	var rates: Array[float] = [1.0,.55,.25,.18]

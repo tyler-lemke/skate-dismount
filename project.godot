@@ -30,7 +30,7 @@ common/physics_ticks_per_second=90
 common/physics_interpolation=true
 3d/default_gravity=15.0
 3d/physics_engine="GodotPhysics3D"
-3d/solver/solver_iterations=32
+3d/solver/solver_iterations=64
 
 [audio]
 default_bus_layout="res://assets/default_bus_layout.tres"

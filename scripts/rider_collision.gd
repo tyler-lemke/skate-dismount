@@ -14,7 +14,7 @@ static func create_shape(key: String) -> Shape3D:
 	if key == "torso":
 		var core := ConvexPolygonShape3D.new()
 		core.points = torso_points()
-		core.custom_solver_bias = .8
+		core.custom_solver_bias = .5
 		return core
 	var box := BoxShape3D.new()
 	match key:
