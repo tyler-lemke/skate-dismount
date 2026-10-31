@@ -1,0 +1,139 @@
+--- round_1/PLAN.md
++++ round_2/PLAN.md
+@@ -128,6 +128,7 @@
+ Focus loss and entering a modal clear held action latches; reacquiring focus needs a new press.
+ In READY/RUN/CRASH/REPLAY focus loss pauses; focus gain requires explicit Resume.
+ Existing help/pause suspension is preserved, and MENU/RESULTS remain in phase.
++If focus was lost while HELP owned live suspension, closing HELP returns to PAUSE until Resume.
+ One crashbreaker charge per attempt is consumed before callbacks, unchanged by replay.
+ 
+ Why: Godot routes GUI input before _unhandled_input; blocking only that callback
+--- round_1/tasks/R01.md
++++ round_2/tasks/R01.md
+@@ -67,8 +67,12 @@
+ Permit explicit 10–600 second developer overrides; neither zero nor an infinite timeout is valid.
+ The timeout negative fixture uses a short internal deadline so verification does not stall.
+ Require exactly one expected `NAME: N checks, 0 failures` completion marker per suite.
+-Names are RULES, INJURIES, INPUTS, GAME, ROUTES, PLAYABILITY, UI, AUDIO, SKATING,
+-CRASHBREAKER, RIDER_SKIN, TRAFFIC, and CAMERA; existing suffix telemetry is permitted.
++The initial registry maps thirteen scripts to RULES, INJURIES, INPUTS, GAME, ROUTES, PLAYABILITY,
++UI, AUDIO, SKATING, CRASHBREAKER, RIDER_SKIN, TRAFFIC, and CAMERA; suffix telemetry is permitted.
++Each registry entry specifies script, expected summary name, and timeout. Later tasks register
++their new regression suites explicitly and publish their names; every registered suite is mandatory.
++Unknown/duplicate/wrong-name markers cannot satisfy another suite. Test fourteenth-suite registration,
++its missing marker, and a valid marker from the wrong suite.
+ Missing, duplicate, wrong-name, malformed, zero-check, or nonzero-failure summaries fail the run.
+ Do not freeze old assertion totals as an oracle; added meaningful checks can change counts.
+ Reject SCRIPT ERROR, parse/compile errors, FAIL markers, reported leaks, and unexpected engine errors.
+--- round_1/tasks/R02.md
++++ round_2/tasks/R02.md
+@@ -117,6 +117,15 @@
+ plus a session improvement. Recovery without new earnings must not produce a new-funded event.
+ Assert explicit known fixture values and file bytes; do not generate expected results with the production parser.
+ Inject/check failure before temp creation, during write, after verification, during backup, and during replacement.
++Separately inject successful primary replacement followed by failed readback/validation.
++Require uncertain status, unchanged acknowledged funds, and retained pending candidate/baseline.
++After reads recover, recognize the written candidate before another replacement; acknowledge
++one earned contribution and none on a second retry.
++Recovery fixture: backup [500000,0,0], session [550000,0,0], corrupt primary. Fail post-replace
++readback, then reconcile: contribution 50000, fund 550000, and no goal crossing; restored funding
++is not new earnings. Initially unreadable primary [100000,500000,0] with session [200000,0,0]
++becomes readable: baseline is already funded, commit [200000,500000,0], contribution 100000,
++and no newly-funded event. Use explicit expected arrays/event counts, not production event math.
+ Each failure leaves a complete recoverable committed record and a pending session candidate when appropriate.
+ Use deterministic failure seams or isolated filesystem fixtures; permission-only tests can be bypassed by admin users.
+ Run a fresh process after failure/recovery/success and prove the selected durable state and preference values.
+--- round_1/tasks/R03.md
++++ round_2/tasks/R03.md
+@@ -44,8 +44,10 @@
+ Preserve the .55/.25/.18 rate policy; R05 later changes clock ownership, not input meaning.
+ 
+ Focus loss in READY/RUN/CRASH/REPLAY enters the existing pause state unless a modal already owns
+-suspension. Focus gain does not auto-resume: the player chooses Resume. Preserve help/pause
+-return context; MENU/RESULTS stay in their current phase. All held/polled gameplay keys require
++suspension. Record a focus-suspension latch even when HELP already owns suspension. Focus gain
++does not resume. After loss from a live phase during HELP, closing HELP returns to PAUSE,
++and only Resume clears the latch. Existing PAUSE return stays PAUSE; MENU/RESULTS keep their
++phase and ordinary help return. All held/polled gameplay keys require
+ release/repress after focus loss, not merely a cleared event latch.
+ 
+ ## Action and focus interfaces
+@@ -82,6 +84,10 @@
+ 11. Record the public policy and regressions in task evidence, with no fabricated native claims.
+ 
+ ## Independent tests and commands
++Dispatch focus loss/gain during HELP from every live phase, then close via H, Escape, and Button.
++Require PAUSE, unchanged clocks/actors and no stale release until explicit Resume plus new input.
++R14 repeats these with actual OS focus.
++
+ 
+ Use actual parsed key and pointer events plus `gui_get_focus_owner`; avoid direct callbacks.
+ Use unique save fixtures before adding the game to the tree and absolute log paths.
+--- round_1/tasks/R04.md
++++ round_2/tasks/R04.md
+@@ -63,8 +63,10 @@
+    with documented separation tolerance, and derive the R08 bail pose there, not at the proposed end.
+    Exclude ineligible RIDs before sweeping or continue a bounded search past them.
+    Substep heading changes with a maximum proxy-boundary travel of .10 m and angle of 5 degrees;
+-   within each substep sweep translation at the sampled orientation and test end overlap.
+-   Log the approximation bound and independently verify turns at supported speed without reducing speed.
++   within each substep use a conservative bound for the intermediate angular hull as well.
++   Bounds select candidates; refine them against the actual oriented proxy before accepting contact.
++   Contact-position/error tolerance is at most .002 m; .10 m/5 degrees are subdivision ceilings,
++   not accepted error. Subdivide further when needed without reducing supported speed.
+ 6. Correct support following from the authored stair profile or actual support queries.
+ 7. Permit at most one riser's brief wheel bounce, then catch up before the next stair descent.
+ 8. Keep support and cosmetic torso/leg smoothing distinct so smoothing cannot accumulate a physical gap.
+@@ -83,6 +85,9 @@
+ Test an excluded first collider followed by a thin eligible obstruction, plus a mid-step turning hit.
+ Independently verify the first ragdoll pose starts at the accepted contact boundary within declared
+ separation tolerance; a hit count alone cannot establish that the rider did not tunnel past it.
++Include a grazing turn with clear endpoints/sampled-orientation casts but independently sampled
++actual-hull penetration over .002 m. Find it; a paired >.002 m-clear turn remains a miss.
++Bracket earliest contact against a finer independent geometry sample, not the production refinement.
+ Measure the root-center wheel-ground reference using actual tread top hits, not production `surface_y()` alone.
+ Do not require four coplanar wheels to touch two different-height treads; inspect their bounded bounce separately.
+ On all three outside routes, minimum/full charge and real held W must never accumulate clearance over one rise.
+@@ -114,5 +119,7 @@
+ Save a source copy/diff before edits; revert only this task's movement/query changes if acceptance fails.
+ Do not overwrite later agent work, production records, models, or the packaged app during rollback.
+ Done requires reproduced baseline failures, passing independent geometry cases, required seam suites,
+-documented proxy/support tolerances, no unexpected script errors, and R05/R08 integration evidence.
++documented proxy/support tolerances, no unexpected script errors, R05 integration evidence,
++and a passing contact-placement-to-existing-bail seam fixture. Publish accepted pose/reset APIs
++and evidence for R08; completed downstream R08 evidence is not required to close R04.
+ Update completion evidence only after those outcomes exist; a helper stub or test-only patch is incomplete.
+--- round_1/tasks/R05.md
++++ round_2/tasks/R05.md
+@@ -47,6 +47,7 @@
+ Focus suspension refreshes the wall-clock baseline while preserving accumulated run/crash time.
+ Physics, replay time, and action audio remain suspended until R03 Resume; fuses/idle/deadlines
+ do not accrue during focus suspension. MENU/RESULTS follow R03 without resetting campaign state.
++The same suspension remains when HELP closes into focus-induced PAUSE; only Resume clears it.
+ Do not call sleep to synthesize normal frame duration.
+ Do not multiply physics delta by Engine.time_scale a second time.
+ Impact-left, impact-cooldown, and cascade camera focus use active presentation seconds.
+--- round_1/tasks/R06.md
++++ round_2/tasks/R06.md
+@@ -55,8 +55,9 @@
+ Immutable means playback cannot write to tape entries or authoritative live state.
+ Replay owns presentation proxies or equivalent isolated visual state, with physics disabled.
+ Alternate cameras query route geometry plus query-only prop geometry at replay time, excluding frozen
+-live dynamic RIDs. A bounded layer-16 static query proxy set with collision mask 0 is acceptable;
+-existing live masks 3 ignore it, and replay queries use static layer 1 plus proxy layer 16.
++live dynamic RIDs. A bounded static query proxy set uses numeric collision_layer 0x10
++(Godot inspector layer 5), collision_mask 0. Existing live masks 3 and 7 ignore that bit;
++replay queries combine static bit 1 and proxy bit 0x10 as numeric collision mask 0x11.
+ Never attach contact/driver/payout callbacks to query proxies; synchronize them before camera solving.
+ Dispose query proxies on every exit. Test a prop with disjoint early/final transforms: only the
+ visible replay-time hull can obstruct an alternate view, not its invisible frozen final collider.
+@@ -95,7 +96,8 @@
+ At selected timestamps, position error must be ≤.002 m for this linear fixture.
+ Choose endpoints and values between irregular samples without computing expected index via production.
+ Cover .55/.25/.18 segments, time-rate switches, multiple render rates and a shortened final interval.
+-Tape duration must match independent elapsed simulation time within one physics delta (.011112 s).
++Tape duration must match independent elapsed simulation time within the actual sampled physics delta.
++Use logged deltas at the time rate rather than assuming every tick is 1/90 of a simulation second.
+ Test initial/final snapshots, deleted actors, visibility changes and identical timestamps at boundaries.
+ Projection fixture uses nondefault FOV and known world points; screen error must be ≤1 design pixel.
+ At one fixed playback timestamp C must cycle four views and return to recorded on the fourth press.

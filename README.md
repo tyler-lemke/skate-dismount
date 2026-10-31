@@ -2,7 +2,9 @@
 
 A three-level skateboard crash game in Godot, with original Blender models and audio. Build speed, choreograph a ragdoll fall, and connect dominoes, carts, cargo towers, explosive drums, and moving traffic. Your score is an **insurance payout**. Mom needs cancer treatment; your absurd fictional stunt policy is your last shot at funding it.
 
-**Current repaired source:** double-click `Play.command` in this workspace, with Godot 4.7.2 installed. The original `builds/StairWreck.app` and `builds/StairWreck-macOS.zip` are historical v3.0 artifacts. The current candidate and verification are tracked in [repair status](docs/repair/RUNNING.md).
+**Play the repaired Mac build:** [download the 3.1 candidate](builds/candidates/f6434bb1219b2b27c0638961f6b00b13d2deb1ed157271fcba7d05f455bfe4bb-20261005T052800.141632Z-ab4472e9/StairWreck-macOS.zip), extract it and open `StairWreck.app`. The universal Intel/Apple Silicon application includes its engine; Godot and Blender are not required to play. Declared minimum: macOS11. See [exact package verification and limits](docs/repair/evidence/R13.md).
+
+To run current workspace source with Godot4.7.2 installed, double-click `Play.command`. The original `builds/StairWreck.app` and `builds/StairWreck-macOS.zip` remain historicalv3.0 artifacts.
 
 ![The treatment fund and Civic route](docs/screenshots/level_1_menu_validation.png)
 

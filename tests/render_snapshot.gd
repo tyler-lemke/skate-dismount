@@ -1,5 +1,8 @@
 # Exports actual Godot scene geometry and GUI layout for Blender validation on machines without a native display.
 extends SceneTree
+
+const TestFixtures = preload("res://tests/test_fixtures.gd")
+var fixtures = TestFixtures.new("render_snapshot")
 var game: Node3D
 var meshes: Dictionary={}
 var instances: Array[Dictionary]=[]
@@ -141,18 +144,19 @@ func run() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--level="):level=int(arg.split("=")[1])
 		if arg.begins_with("--mode="):mode=arg.split("=")[1]
-	game=load("res://scenes/main.tscn").instantiate();root.add_child(game);game.test_mode=true;game.save_path="res://builds/snapshot_records.json"
-	game.best_scores.assign([0,0,0]);game.legacy_scores.assign([0,0,0]);game.select_route(level)
+	game=fixtures.create_game(root)
+	if game == null: return
+	game.best_scores.assign([0,0,0]);game.legacy_scores.assign([0,0,0]);game._replace_route(level)
 	if mode=="results" and level==2:
 		# Earn the earlier chapters through complete runs; never invent a funded save.
 		for chapter in [0,1]:
-			game.select_route(chapter);game.start_ready();game.charge=1.0;game.automate=true;game.launch()
+			game._replace_route(chapter);game.start_ready();game.charge=1.0;game.automate=true;game.launch()
 			var budget: int=0
 			while game.phase!=game.Phase.RESULTS and budget<4500:
 				await physics_frame;budget+=1
 			if game.phase!=game.Phase.RESULTS:
 				printerr("FAIL: campaign capture requires actual settled earlier chapters");quit(1);return
-		game.select_route(level)
+		game._replace_route(level)
 	if mode!="menu":
 		game.start_ready()
 		if mode in ["crash","results","traffic"]:
@@ -194,7 +198,7 @@ func run() -> void:
 	walk(game.level_root);walk_gui(game.hud.root)
 	var env:Environment=game.world.root.find_children("*","WorldEnvironment",true,false)[0].environment
 	var data:Dictionary={"meshes":meshes,"instances":instances,"gui":gui,"camera":matrix(game.camera.global_transform),"fov":game.camera.fov,"width":1440,"height":900,"background":rgba(env.background_color),"level":level,"mode":mode,"score":game.rules.score,"renderer":"Blender validation of exported Godot scene"}
-	var file:=FileAccess.open("res://builds/scene_%d_%s.json"%[level+1,mode],FileAccess.WRITE);file.store_string(JSON.stringify(data));file.close()
+	var file:=FileAccess.open(fixtures.artifact_path("scene_%d_%s.json"%[level+1,mode]),FileAccess.WRITE);file.store_string(JSON.stringify(data));file.close()
 	print("SCENE_EXPORT: ",level+1," ",mode," ",instances.size()," instances; ",fixtures.artifact_path("scene_%d_%s.json"%[level+1,mode]))
 	game.queue_free();await process_frame;await process_frame;game=null
 	quit()

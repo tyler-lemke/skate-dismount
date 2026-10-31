@@ -1,0 +1,371 @@
+{
+  "tasks": 15,
+  "blocking_edges": 30,
+  "all_blocking_edges_exact": true,
+  "all_descriptions_exact": true,
+  "all_repairs_open": true,
+  "ready": [
+    {
+      "task": "R01",
+      "id": "swfix-r01-0gu"
+    }
+  ],
+  "cycles": {
+    "cycles": [],
+    "count": 0,
+    "active_count": 0,
+    "archived_closed_count": 0,
+    "total_count": 0,
+    "blocking_only": false,
+    "include_closed": false,
+    "scope": "active"
+  },
+  "tracker_healthy": true,
+  "dependency_results": [
+    {
+      "task": "R01",
+      "id": "swfix-r01-0gu",
+      "description_bytes": 9462,
+      "dependency_result": []
+    },
+    {
+      "task": "R02",
+      "id": "swfix-r02-dja",
+      "description_bytes": 12272,
+      "dependency_result": [
+        {
+          "issue_id": "swfix-r02-dja",
+          "depends_on_id": "swfix-r01-0gu",
+          "type": "blocks",
+          "title": "R01 \u2014 Isolate regression startup and preserve failure evidence",
+          "status": "open",
+          "priority": 0
+        }
+      ]
+    },
+    {
+      "task": "R03",
+      "id": "swfix-r03-vjf",
+      "description_bytes": 9589,
+      "dependency_result": [
+        {
+          "issue_id": "swfix-r03-vjf",
+          "depends_on_id": "swfix-r01-0gu",
+          "type": "blocks",
+          "title": "R01 \u2014 Isolate regression startup and preserve failure evidence",
+          "status": "open",
+          "priority": 0
+        }
+      ]
+    },
+    {
+      "task": "R04",
+      "id": "swfix-r04-yy0",
+      "description_bytes": 9648,
+      "dependency_result": [
+        {
+          "issue_id": "swfix-r04-yy0",
+          "depends_on_id": "swfix-r05-nx9",
+          "type": "blocks",
+          "title": "R05 \u2014 Separate clocks and simulation from render presentation",
+          "status": "open",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "task": "R05",
+      "id": "swfix-r05-nx9",
+      "description_bytes": 8493,
+      "dependency_result": [
+        {
+          "issue_id": "swfix-r05-nx9",
+          "depends_on_id": "swfix-r01-0gu",
+          "type": "blocks",
+          "title": "R01 \u2014 Isolate regression startup and preserve failure evidence",
+          "status": "open",
+          "priority": 0
+        }
+      ]
+    },
+    {
+      "task": "R06",
+      "id": "swfix-r06-8kj",
+      "description_bytes": 11186,
+      "dependency_result": [
+        {
+          "issue_id": "swfix-r06-8kj",
+          "depends_on_id": "swfix-r09-3or",
+          "type": "blocks",
+          "title": "R09 \u2014 Wait for traffic rotation and preserve causal settlement",
+          "status": "open",
+          "priority": 1
+        },
+        {
+          "issue_id": "swfix-r06-8kj",
+          "depends_on_id": "swfix-r08-jxj",
+          "type": "blocks",
+          "title": "R08 \u2014 Verify bail transfer and stabilize body skin ownership",
+          "status": "open",
+          "priority": 1
+        },
+        {
+          "issue_id": "swfix-r06-8kj",
+          "depends_on_id": "swfix-r07-d9x",
+          "type": "blocks",
+          "title": "R07 \u2014 Keep the actual camera outside geometry and correctly aimed",
+          "status": "open",
+          "priority": 1
+        },
+        {
+          "issue_id": "swfix-r06-8kj",
+          "depends_on_id": "swfix-r05-nx9",
+          "type": "blocks",
+          "title": "R05 \u2014 Separate clocks and simulation from render presentation",
+          "status": "open",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "task": "R07",
+      "id": "swfix-r07-d9x",
+      "description_bytes": 9587,
+      "dependency_result": [
+        {
+          "issue_id": "swfix-r07-d9x",
+          "depends_on_id": "swfix-r05-nx9",
+          "type": "blocks",
+          "title": "R05 \u2014 Separate clocks and simulation from render presentation",
+          "status": "open",
+          "priority": 1
+        },
+        {
+          "issue_id": "swfix-r07-d9x",
+          "depends_on_id": "swfix-r04-yy0",
+          "type": "blocks",
+          "title": "R04 \u2014 Ground skating and sweep real obstacle geometry",
+          "status": "open",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "task": "R08",
+      "id": "swfix-r08-jxj",
+      "description_bytes": 8848,
+      "dependency_result": [
+        {
+          "issue_id": "swfix-r08-jxj",
+          "depends_on_id": "swfix-r05-nx9",
+          "type": "blocks",
+          "title": "R05 \u2014 Separate clocks and simulation from render presentation",
+          "status": "open",
+          "priority": 1
+        },
+        {
+          "issue_id": "swfix-r08-jxj",
+          "depends_on_id": "swfix-r04-yy0",
+          "type": "blocks",
+          "title": "R04 \u2014 Ground skating and sweep real obstacle geometry",
+          "status": "open",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "task": "R09",
+      "id": "swfix-r09-3or",
+      "description_bytes": 9328,
+      "dependency_result": [
+        {
+          "issue_id": "swfix-r09-3or",
+          "depends_on_id": "swfix-r05-nx9",
+          "type": "blocks",
+          "title": "R05 \u2014 Separate clocks and simulation from render presentation",
+          "status": "open",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "task": "R10",
+      "id": "swfix-r10-xms",
+      "description_bytes": 7879,
+      "dependency_result": [
+        {
+          "issue_id": "swfix-r10-xms",
+          "depends_on_id": "swfix-r03-vjf",
+          "type": "blocks",
+          "title": "R03 \u2014 Make modal focus and gameplay input authoritative",
+          "status": "open",
+          "priority": 0
+        },
+        {
+          "issue_id": "swfix-r10-xms",
+          "depends_on_id": "swfix-r02-dja",
+          "type": "blocks",
+          "title": "R02 \u2014 Recover and commit records with truthful funding state",
+          "status": "open",
+          "priority": 0
+        }
+      ]
+    },
+    {
+      "task": "R11",
+      "id": "swfix-r11-sov",
+      "description_bytes": 7467,
+      "dependency_result": [
+        {
+          "issue_id": "swfix-r11-sov",
+          "depends_on_id": "swfix-r03-vjf",
+          "type": "blocks",
+          "title": "R03 \u2014 Make modal focus and gameplay input authoritative",
+          "status": "open",
+          "priority": 0
+        },
+        {
+          "issue_id": "swfix-r11-sov",
+          "depends_on_id": "swfix-r06-8kj",
+          "type": "blocks",
+          "title": "R06 \u2014 Replay timestamped immutable actor and camera state",
+          "status": "open",
+          "priority": 1
+        },
+        {
+          "issue_id": "swfix-r11-sov",
+          "depends_on_id": "swfix-r05-nx9",
+          "type": "blocks",
+          "title": "R05 \u2014 Separate clocks and simulation from render presentation",
+          "status": "open",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "task": "R12",
+      "id": "swfix-r12-epn",
+      "description_bytes": 8234,
+      "dependency_result": [
+        {
+          "issue_id": "swfix-r12-epn",
+          "depends_on_id": "swfix-r03-vjf",
+          "type": "blocks",
+          "title": "R03 \u2014 Make modal focus and gameplay input authoritative",
+          "status": "open",
+          "priority": 0
+        },
+        {
+          "issue_id": "swfix-r12-epn",
+          "depends_on_id": "swfix-r02-dja",
+          "type": "blocks",
+          "title": "R02 \u2014 Recover and commit records with truthful funding state",
+          "status": "open",
+          "priority": 0
+        },
+        {
+          "issue_id": "swfix-r12-epn",
+          "depends_on_id": "swfix-r10-xms",
+          "type": "blocks",
+          "title": "R10 \u2014 Make claim, recovery, and viewport UI coherent",
+          "status": "open",
+          "priority": 1
+        },
+        {
+          "issue_id": "swfix-r12-epn",
+          "depends_on_id": "swfix-r09-3or",
+          "type": "blocks",
+          "title": "R09 \u2014 Wait for traffic rotation and preserve causal settlement",
+          "status": "open",
+          "priority": 1
+        },
+        {
+          "issue_id": "swfix-r12-epn",
+          "depends_on_id": "swfix-r08-jxj",
+          "type": "blocks",
+          "title": "R08 \u2014 Verify bail transfer and stabilize body skin ownership",
+          "status": "open",
+          "priority": 1
+        },
+        {
+          "issue_id": "swfix-r12-epn",
+          "depends_on_id": "swfix-r07-d9x",
+          "type": "blocks",
+          "title": "R07 \u2014 Keep the actual camera outside geometry and correctly aimed",
+          "status": "open",
+          "priority": 1
+        },
+        {
+          "issue_id": "swfix-r12-epn",
+          "depends_on_id": "swfix-r06-8kj",
+          "type": "blocks",
+          "title": "R06 \u2014 Replay timestamped immutable actor and camera state",
+          "status": "open",
+          "priority": 1
+        },
+        {
+          "issue_id": "swfix-r12-epn",
+          "depends_on_id": "swfix-r04-yy0",
+          "type": "blocks",
+          "title": "R04 \u2014 Ground skating and sweep real obstacle geometry",
+          "status": "open",
+          "priority": 1
+        },
+        {
+          "issue_id": "swfix-r12-epn",
+          "depends_on_id": "swfix-r11-sov",
+          "type": "blocks",
+          "title": "R11 \u2014 Verify audio transitions during pause and replay",
+          "status": "open",
+          "priority": 2
+        }
+      ]
+    },
+    {
+      "task": "R13",
+      "id": "swfix-r13-4d8",
+      "description_bytes": 9855,
+      "dependency_result": [
+        {
+          "issue_id": "swfix-r13-4d8",
+          "depends_on_id": "swfix-r12-epn",
+          "type": "blocks",
+          "title": "R12 \u2014 Integrate and stress the complete three-route loop",
+          "status": "open",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "task": "R14",
+      "id": "swfix-r14-9gk",
+      "description_bytes": 8163,
+      "dependency_result": [
+        {
+          "issue_id": "swfix-r14-9gk",
+          "depends_on_id": "swfix-r13-4d8",
+          "type": "blocks",
+          "title": "R13 \u2014 Build an identifiable extracted candidate package",
+          "status": "open",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "task": "R15",
+      "id": "swfix-r15-zra",
+      "description_bytes": 7901,
+      "dependency_result": [
+        {
+          "issue_id": "swfix-r15-zra",
+          "depends_on_id": "swfix-r14-9gk",
+          "type": "blocks",
+          "title": "R14 \u2014 Validate native gameplay visuals input audio and saves",
+          "status": "open",
+          "priority": 1
+        }
+      ]
+    }
+  ],
+  "scope": "Planning queue only; no gameplay repair acceptance is claimed."
+}

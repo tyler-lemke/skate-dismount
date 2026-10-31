@@ -1,0 +1,63 @@
+--- round_2/tasks/R03.md
++++ round_3/tasks/R03.md
+@@ -53,6 +53,9 @@
+ ## Action and focus interfaces
+ 
+ Document an explicit phase/action table beside the centralized dispatch implementation.
++Mute is a global presentation/preference action in every phase, including PAUSE/HELP.
++M uses the authoritative policy, cannot launch/resume/change phase, and respects R02 protected
++records/pending state. Help H toggles the active help panel without bypassing focus suspension.
+ MENU: route/play/help/mute and Button keyboard navigation; no charge, bail or breaker.
+ READY: pose/hat/steering/charge/camera plus pause/help/retry; no breaker or filing.
+ RUN: push/steering/bail/held slow/camera plus pause/help/retry; no pose/hat changes.
+@@ -84,6 +87,10 @@
+ 11. Record the public policy and regressions in task evidence, with no fabricated native claims.
+ 
+ ## Independent tests and commands
++Dispatch M in READY/RUN/CRASH with a focused live Button and under PAUSE/HELP. Require one
++mute change per fresh non-echo press, with phase/modal/charge/breaker/funding unchanged.
++R11/R14 retain actual player-state and audible checks.
++
+ Dispatch focus loss/gain during HELP from every live phase, then close via H, Escape, and Button.
+ Require PAUSE, unchanged clocks/actors and no stale release until explicit Resume plus new input.
+ R14 repeats these with actual OS focus.
+--- round_2/tasks/R06.md
++++ round_3/tasks/R06.md
+@@ -5,6 +5,7 @@
+ This card repairs faithful playback after clock, camera, rig and settlement contracts land.
+ Reserve the shared main/rider/traffic writer slots; do not edit those files concurrently.
+ Read new AGENTS.md instructions and the completed prerequisites' handoffs before implementation.
++R01 infrastructure is a transitive prerequisite through R05; its fixture/runner handoff must exist.
+ 
+ ## Background and measured failure
+ 
+@@ -38,6 +39,11 @@
+ Use the latest completed render sample at each boundary and record its own time/age explicitly.
+ Do not pair a stale camera with new actor state and label both as sampled simultaneously.
+ Camera samples interpolate on their own sorted timestamps against the same playback clock.
++Use bail as tape simulation origin0. Normalize source camera times to that origin and preserve
++pre-bail age; never relabel a stale source as simultaneous with an actor boundary. Store increasing
++capture sequence; at equal timestamps the latest sequence wins before bracketing distinct times.
++Outside the camera sample range hold earliest/latest views, including an older final render source.
++Actor time clamps to [0,duration]. A zero-duration tape disables replay; no interpolation divides by0.
+ The default view reproduces the recorded camera; C cycles recorded → chase → side → overhead.
+ Alternate views use replayed actor focus and R07 safety, never the frozen final live torso.
+ This keeps the promised camera choice useful without adding forces, driver logic or payout.
+@@ -64,6 +70,8 @@
+ It must not call hit/ignite/shatter/activate, driver integration, impulse or bank APIs.
+ Never use live `apply_snapshot` to modify cause/armed/fuse/paid fields during playback.
+ Use a dedicated visual snapshot adapter for proxies; keep authoritative settlement state intact.
++Isolate mutable material/morph/wheel state as well as dictionaries. Test live shader/damage values
++during proxy playback; sharing mutable resources cannot satisfy presentation isolation.
+ Hide live meshes/effects while proxies are visible without disabling needed result state ownership.
+ On entry preserve final live presentation visibility and camera state for exact restoration.
+ On completion, retry, route exit or disposal, remove proxies and restore the agreed final state.
+@@ -99,6 +107,8 @@
+ Tape duration must match independent elapsed simulation time within the actual sampled physics delta.
+ Use logged deltas at the time rate rather than assuming every tick is 1/90 of a simulation second.
+ Test initial/final snapshots, deleted actors, visibility changes and identical timestamps at boundaries.
++Use distinct camera transforms at one timestamp, an older final render sample, and zero-duration
++tape controls to verify deterministic tie, hold, and disabled-playback rules independently.
+ Projection fixture uses nondefault FOV and known world points; screen error must be ≤1 design pixel.
+ At one fixed playback timestamp C must cycle four views and return to recorded on the fourth press.
+ Compare actor transforms and independent projection while changing view; no timeline/state drift.

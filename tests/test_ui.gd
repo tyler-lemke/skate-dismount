@@ -1,4 +1,7 @@
 extends SceneTree
+
+const TestFixtures = preload("res://tests/test_fixtures.gd")
+var fixtures = TestFixtures.new("test_ui")
 var failures:int=0
 var checks:int=0
 func _initialize() -> void:call_deferred("run")
@@ -37,9 +40,10 @@ func verify(node:Node) -> void:
 		check(node.focus_mode==Control.FOCUS_ALL,"button is keyboard focusable: "+node.text)
 	for child in node.get_children():verify(child)
 func run() -> void:
-	var game:Node=load("res://scenes/main.tscn").instantiate();root.add_child(game)
+	var game:Node=fixtures.create_game(root)
+	if game == null: return
 	for i in 3:
-		game.select_route(i);await process_frame;verify(game.hud.root)
+		game._replace_route(i);await process_frame;verify(game.hud.root)
 	game.hud.help_panel.visible=true
 	await process_frame
 	click(Vector2(100,710))

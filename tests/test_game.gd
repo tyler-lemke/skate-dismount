@@ -1,5 +1,8 @@
 extends SceneTree
 
+const TestFixtures = preload("res://tests/test_fixtures.gd")
+var fixtures = TestFixtures.new("test_game")
+
 var checks: int=0
 var failures: int=0
 var game: Node3D
@@ -19,10 +22,10 @@ func _initialize() -> void:
 	call_deferred("run")
 
 func run() -> void:
-	game=load("res://scenes/main.tscn").instantiate();root.add_child(game)
-	game.test_mode=true;game.save_path="res://builds/test_records.json"
+	game=fixtures.create_game(root)
+	if game == null: return
 	for level_index in range(3):
-		game.select_route(level_index)
+		game._replace_route(level_index)
 		check(game.phase==game.Phase.MENU,"route selection starts at menu")
 		check(game.world.props.size()>45,"route contains a substantial physical destruction layout")
 		game.start_ready()
@@ -80,7 +83,7 @@ func run() -> void:
 		check(game.phase==game.Phase.MENU and game.rules.score==0 and game.replay_frames.is_empty(),"return to routes clears run and replay")
 		summaries.append(report)
 	# Isolated causal chain oracle: an untouched prop cannot score; a moved active one scores once.
-	game.select_route(0);game.start_ready();game.skater.position.x=4.3;game.charge=.8;game.launch()
+	game._replace_route(0);game.start_ready();game.skater.position.x=4.3;game.charge=.8;game.launch()
 	var prop:CrashProp=game.world.props[0];await frames(30)
 	prop.shatter();check(game.rules.destroyed==0,"unarmed prop cannot shatter or score")
 	prop.activate(Vector3(0,15,30));await frames(120)

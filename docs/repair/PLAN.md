@@ -126,6 +126,9 @@ Live gameplay hotkeys work regardless of a previously focused non-modal Button.
 MENU and RESULTS retain keyboard button navigation.
 Charge launches on a matching release only if its press began in eligible READY state.
 Focus loss and entering a modal clear held action latches; reacquiring focus needs a new press.
+In READY/RUN/CRASH/REPLAY focus loss pauses; focus gain requires explicit Resume.
+Existing help/pause suspension is preserved, and MENU/RESULTS remain in phase.
+If focus was lost while HELP owned live suspension, closing HELP returns to PAUSE until Resume.
 One crashbreaker charge per attempt is consumed before callbacks, unchanged by replay.
 
 Why: Godot routes GUI input before _unhandled_input; blocking only that callback
@@ -141,6 +144,8 @@ and event visibility at their recorded timestamp without re-running physics or p
 The default replay view reproduces the recorded camera; C selects chase, side, overhead
 using replayed actor focus, never the currently frozen final body position.
 Replay is a presentation layer and may not mutate live payout/cause/armed/fuse records.
+Alternate-view queries use replay-time prop hulls plus static route geometry and ignore frozen final hulls.
+Replay audio is music-only for this repair; visible receipts are recorded without live sound callbacks.
 Exit restores the final live state and result UI exactly.
 
 Why: a replay should explain the causal crash the player just made, and make the
@@ -161,6 +166,9 @@ Store failure leaves a session-best candidate and a persistent retry state.
 The HUD distinguishes session improvement from banked persistent funding.
 Only successful durable commit earns “secured” wording and a newly funded ending.
 Retrying save cannot add the improvement twice.
+No-backup fresh recovery is explicit and preserves corrupt originals before replacement.
+An uncertain post-replacement result reconciles validated disk state before another write.
+Restoring old funding alone cannot count as new earnings or trigger a newly-funded ending.
 
 Why: the story makes losing a best claim especially costly, and current failures are silent.
 A small transactional records service prevents partial mutation and false success UI.

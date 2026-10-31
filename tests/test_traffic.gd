@@ -1,5 +1,8 @@
 extends SceneTree
 
+const TestFixtures = preload("res://tests/test_fixtures.gd")
+var fixtures = TestFixtures.new("test_traffic")
+
 class TrafficHarness extends Node3D:
 	var live: bool = true
 	var claims: Dictionary = {}
@@ -28,10 +31,10 @@ func dispatch(code: int, pressed: bool) -> void:
 	Input.parse_input_event(event);Input.flush_buffered_events()
 
 func actual_approach_runs() -> void:
-	var game:Node3D=load("res://scenes/main.tscn").instantiate()
-	game.test_mode=true;game.save_path="res://builds/traffic_input_records.json";root.add_child(game)
+	var game:Node3D=fixtures.create_game(root)
+	if game == null: return
 	for route in 3:
-		game.select_route(route);game.start_ready()
+		game._replace_route(route);game.start_ready()
 		var edge:float=-WreckRules.LEVELS[route].width*.5+.8
 		dispatch(KEY_A,true)
 		var ticks:int=0
@@ -180,7 +183,7 @@ func run() -> void:
 	check(harness.claims.is_empty(),"snapshot application never awards a claim")
 	harness.queue_free();await process_frame;await process_frame
 	await actual_approach_runs()
-	var file:=FileAccess.open("res://builds/traffic_report.json",FileAccess.WRITE)
+	var file:=FileAccess.open(fixtures.artifact_path("traffic_report.json"),FileAccess.WRITE)
 	file.store_string(JSON.stringify({"checks":checks,"failures":failures,"runs":telemetry},"\t"));file.close()
 	print("TRAFFIC: ",checks," checks, ",failures," failures; ",JSON.stringify(telemetry))
 	quit(1 if failures else 0)

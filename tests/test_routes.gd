@@ -1,4 +1,7 @@
 extends SceneTree
+
+const TestFixtures = preload("res://tests/test_fixtures.gd")
+var fixtures = TestFixtures.new("test_routes")
 var failures:int=0
 var checks:int=0
 var game:Node3D
@@ -8,11 +11,12 @@ func check(condition:bool,message:String) -> void:
 	if not condition: failures+=1;printerr("FAIL: ",message)
 func _initialize() -> void:call_deferred("run")
 func run() -> void:
-	game=load("res://scenes/main.tscn").instantiate();root.add_child(game);game.test_mode=true;game.save_path="res://builds/route_test_records.json"
+	game=fixtures.create_game(root)
+	if game == null: return
 	for route in range(3):
 		var scores:Array[int]=[]
 		for lane in [-3.3,0.0,3.3]:
-			game.select_route(route);game.start_ready();game.skater.position.x=lane;game.charge=.75;game.launch()
+			game._replace_route(route);game.start_ready();game.skater.position.x=lane;game.charge=.75;game.launch()
 			var ticks:int=0
 			while game.phase!=game.Phase.RESULTS and ticks<3000:
 				await physics_frame;ticks+=1
@@ -31,5 +35,5 @@ func run() -> void:
 	check(game.phase==game.Phase.READY and game.rules.score==0 and not game.skater.ragdoll,"keyboard retry restores fresh rider")
 	game.queue_free();await process_frame;await process_frame;game=null
 	print("ROUTES: ",checks," checks, ",failures," failures; ",JSON.stringify(reports))
-	var file:=FileAccess.open("res://builds/route_results.json",FileAccess.WRITE);file.store_string(JSON.stringify(reports,"\t"));file.close()
+	var file:=FileAccess.open(fixtures.artifact_path("route_results.json"),FileAccess.WRITE);file.store_string(JSON.stringify(reports,"\t"));file.close()
 	quit(1 if failures else 0)

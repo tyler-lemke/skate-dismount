@@ -1,0 +1,100 @@
+{
+  "round": 2,
+  "tasks": 15,
+  "dependency_edges": 30,
+  "line_total": 2112,
+  "topological_order": [
+    "R01",
+    "R02",
+    "R03",
+    "R05",
+    "R04",
+    "R07",
+    "R08",
+    "R09",
+    "R06",
+    "R10",
+    "R11",
+    "R12",
+    "R13",
+    "R14",
+    "R15"
+  ],
+  "initial_ready": [
+    "R01"
+  ],
+  "intentional_sink": "R15",
+  "all_tasks_reach_release": true,
+  "cycles": [],
+  "rationale_sample": [
+    {
+      "task": "R09",
+      "rationale_lines": [
+        [
+          33,
+          "## Goal and rationale"
+        ]
+      ]
+    },
+    {
+      "task": "R12",
+      "rationale_lines": [
+        [
+          20,
+          "## Why an integration gate is necessary"
+        ]
+      ]
+    },
+    {
+      "task": "R06",
+      "rationale_lines": [
+        [
+          25,
+          "## Timeline contract and rationale"
+        ]
+      ]
+    },
+    {
+      "task": "R13",
+      "rationale_lines": [
+        [
+          24,
+          "## Scope and rationale"
+        ],
+        [
+          30,
+          "Why: native validation must play the same extracted bytes that will later be promoted."
+        ]
+      ]
+    },
+    {
+      "task": "R07",
+      "rationale_lines": [
+        [
+          26,
+          "## Chosen safety contract and rationale"
+        ]
+      ]
+    }
+  ],
+  "document_sha256": {
+    "docs/repair/PLAN.md": "5c07aabe8ffb474ad6a2caf1795bf093c52abd66caebb22c1f5fa92cda6c7d74",
+    "docs/repair/task_graph.json": "204862d1286e674d26a356ec9321ef7b78a3a6bec7646b57fb45680862e3347f",
+    "docs/repair/tasks/R01.md": "20f43181bfed43744b21acbf24d5276b48f216dabfb4eb72a751e0025a8b3a79",
+    "docs/repair/tasks/R02.md": "85b22a6e683f90e932bfb968539d7e955dff88dfaefad3d814471b260d8ef3db",
+    "docs/repair/tasks/R03.md": "eb949409e90fc3ec08e534aafbc339522b81ed3e0a0a466c2ad22d73ef39c013",
+    "docs/repair/tasks/R04.md": "d1bfecf03cf2c846fad15e557a470edbf10b9c0d9df18a5b512e80ee13cd0697",
+    "docs/repair/tasks/R05.md": "0777bb8e9ca14bb869f6e209fe3fee5649e283b13f7f141ff0b1f60595c01b5d",
+    "docs/repair/tasks/R06.md": "6cb7c76386f236f1e4fe7002133c8f939727a64f5c44c3be6cbf893abdf634e9",
+    "docs/repair/tasks/R07.md": "1a6f679050e76fe5c98d05452f99503698063a75eaaca21f6b08b13045ba777c",
+    "docs/repair/tasks/R08.md": "2c6a0b001a416aca0ffe630ec33d09bbcd06637b1c84dd42eea4ab0aa6a3b645",
+    "docs/repair/tasks/R09.md": "3b4564952e71cb6a5225f2c112970f414c9f0fc9304a7291497a17e770aa70b0",
+    "docs/repair/tasks/R10.md": "51094af165e9b934087787c6f79c743dbca46954d2dca8f5e9f14d46c256ecbd",
+    "docs/repair/tasks/R11.md": "8b0a3e43ddc544c72dbb88144bab38edab499ccca9fea6797a5f538764467e2a",
+    "docs/repair/tasks/R12.md": "a4ee1fc47a18d627c85b28e9728556ef409daf0ea5482165ec5c673953db997e",
+    "docs/repair/tasks/R13.md": "ae44968cf2276dc927c97314ccd5e569e8d337ff1076fedaef1f183a3230770e",
+    "docs/repair/tasks/R14.md": "56746bb9550be90403b4378593de62254335375bf500ca3d053d0e1ca2607b68",
+    "docs/repair/tasks/R15.md": "e53905ba820ad0afb59582e979c775c4ab7c9a72469ee527db1b34d0ad08d316"
+  },
+  "limitations": "Static plan validation; no gameplay implementation or native acceptance is claimed."
+}

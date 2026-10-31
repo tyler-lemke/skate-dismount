@@ -1,5 +1,8 @@
 extends SceneTree
 
+const TestFixtures = preload("res://tests/test_fixtures.gd")
+var fixtures = TestFixtures.new("test_crashbreaker")
+
 var checks: int = 0
 var failures: int = 0
 var game: Node3D
@@ -23,7 +26,7 @@ func dispatch(code: int, pressed: bool = true, echo: bool = false) -> void:
 	await process_frame
 
 func fresh_crash() -> void:
-	game.select_route(0)
+	game._replace_route(0)
 	game.start_ready()
 	game.charge=.3
 	game.launch()
@@ -60,7 +63,7 @@ func no_charge(message: String, events: int = 0) -> void:
 	check(game.boosts==1 and game.breaker_events.size()==events,message)
 
 func input_contract() -> void:
-	game.select_route(0)
+	game._replace_route(0)
 	game.start_ready()
 	await dispatch(KEY_SHIFT)
 	no_charge("Shift in READY cannot spend the charge")
@@ -206,10 +209,8 @@ func time_rate_contract() -> void:
 	check(measured.max()-measured.min()<.05,"immediate impulse size does not depend on presentation time scale")
 
 func run() -> void:
-	game=load("res://scenes/main.tscn").instantiate()
-	root.add_child(game)
-	game.test_mode=true
-	game.save_path="res://builds/crashbreaker_test_records.json"
+	game=fixtures.create_game(root)
+	if game == null: return
 	game.best_scores.assign([0,0,0])
 	await input_contract()
 	await directional_contract()

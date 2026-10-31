@@ -138,5 +138,20 @@
     "script": "tests/test_records_ui.gd",
     "summary": "RECORDS_UI",
     "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_camera_integration.gd",
+    "summary": "CAMERA_INTEGRATION",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_bail_transfer.gd",
+    "summary": "BAIL_TRANSFER",
+    "timeout_seconds": 180
+  },
+  {
+    "script": "tests/test_lifecycle.gd",
+    "summary": "LIFECYCLE",
+    "timeout_seconds": 180
   }
 ]

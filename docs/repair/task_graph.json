@@ -1,0 +1,166 @@
+[
+  {
+    "key": "R01",
+    "title": "Isolate regression startup and preserve failure evidence",
+    "priority": 0,
+    "depends_on": [],
+    "draft_owner": "validation",
+    "path": "docs/repair/tasks/R01.md"
+  },
+  {
+    "key": "R02",
+    "title": "Recover and commit records with truthful funding state",
+    "priority": 0,
+    "depends_on": [
+      "R01"
+    ],
+    "draft_owner": "validation",
+    "path": "docs/repair/tasks/R02.md"
+  },
+  {
+    "key": "R03",
+    "title": "Make modal focus and gameplay input authoritative",
+    "priority": 0,
+    "depends_on": [
+      "R01"
+    ],
+    "draft_owner": "state",
+    "path": "docs/repair/tasks/R03.md"
+  },
+  {
+    "key": "R04",
+    "title": "Ground skating and sweep real obstacle geometry",
+    "priority": 1,
+    "depends_on": [
+      "R05"
+    ],
+    "draft_owner": "physics",
+    "path": "docs/repair/tasks/R04.md"
+  },
+  {
+    "key": "R05",
+    "title": "Separate clocks and simulation from render presentation",
+    "priority": 1,
+    "depends_on": [
+      "R01"
+    ],
+    "draft_owner": "root",
+    "path": "docs/repair/tasks/R05.md"
+  },
+  {
+    "key": "R06",
+    "title": "Replay timestamped immutable actor and camera state",
+    "priority": 1,
+    "depends_on": [
+      "R05",
+      "R07",
+      "R08",
+      "R09"
+    ],
+    "draft_owner": "state",
+    "path": "docs/repair/tasks/R06.md"
+  },
+  {
+    "key": "R07",
+    "title": "Keep the actual camera outside geometry and correctly aimed",
+    "priority": 1,
+    "depends_on": [
+      "R05",
+      "R04"
+    ],
+    "draft_owner": "state",
+    "path": "docs/repair/tasks/R07.md"
+  },
+  {
+    "key": "R08",
+    "title": "Verify bail transfer and stabilize body skin ownership",
+    "priority": 1,
+    "depends_on": [
+      "R04",
+      "R05"
+    ],
+    "draft_owner": "physics",
+    "path": "docs/repair/tasks/R08.md"
+  },
+  {
+    "key": "R09",
+    "title": "Wait for traffic rotation and preserve causal settlement",
+    "priority": 1,
+    "depends_on": [
+      "R05"
+    ],
+    "draft_owner": "physics",
+    "path": "docs/repair/tasks/R09.md"
+  },
+  {
+    "key": "R10",
+    "title": "Make claim, recovery, and viewport UI coherent",
+    "priority": 1,
+    "depends_on": [
+      "R02",
+      "R03"
+    ],
+    "draft_owner": "root",
+    "path": "docs/repair/tasks/R10.md"
+  },
+  {
+    "key": "R11",
+    "title": "Verify audio transitions during pause and replay",
+    "priority": 2,
+    "depends_on": [
+      "R03",
+      "R05",
+      "R06"
+    ],
+    "draft_owner": "root",
+    "path": "docs/repair/tasks/R11.md"
+  },
+  {
+    "key": "R12",
+    "title": "Integrate and stress the complete three-route loop",
+    "priority": 1,
+    "depends_on": [
+      "R02",
+      "R03",
+      "R04",
+      "R06",
+      "R07",
+      "R08",
+      "R09",
+      "R10",
+      "R11"
+    ],
+    "draft_owner": "root",
+    "path": "docs/repair/tasks/R12.md"
+  },
+  {
+    "key": "R13",
+    "title": "Build an identifiable extracted candidate package",
+    "priority": 1,
+    "depends_on": [
+      "R12"
+    ],
+    "draft_owner": "validation",
+    "path": "docs/repair/tasks/R13.md"
+  },
+  {
+    "key": "R14",
+    "title": "Validate native gameplay visuals input audio and saves",
+    "priority": 1,
+    "depends_on": [
+      "R13"
+    ],
+    "draft_owner": "root",
+    "path": "docs/repair/tasks/R14.md"
+  },
+  {
+    "key": "R15",
+    "title": "Promote the verified game and repair launcher provenance",
+    "priority": 1,
+    "depends_on": [
+      "R14"
+    ],
+    "draft_owner": "root",
+    "path": "docs/repair/tasks/R15.md"
+  }
+]

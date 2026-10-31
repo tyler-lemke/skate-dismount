@@ -26,7 +26,6 @@ func run() -> void:
 			if pushing:
 				var down:=InputEventKey.new(); down.physical_keycode=KEY_W; down.keycode=KEY_W; down.pressed=true; Input.parse_input_event(down); Input.flush_buffered_events()
 				await process_frame
-				print("PUSH_SETUP route",route," input",Input.is_physical_key_pressed(KEY_W)," blocked",game.blocked_keys," focused",game.window_focused," keys",game.pressed_keys)
 			var maximum_gap: float=0
 			var top_speed: float=0
 			var stairs: int=0

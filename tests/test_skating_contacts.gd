@@ -224,7 +224,7 @@ func run() -> void:
 	# Use the authored real route treads as the oracle, with root-center downward
 	# rays. Samples avoid exact shared edges where either adjacent face is valid.
 	for route in 3:
-		game.select_route(route)
+		game._replace_route(route)
 		await physics_frame
 		await physics_frame
 		var level: Dictionary = Rules.LEVELS[route]

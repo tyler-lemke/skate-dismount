@@ -1,5 +1,8 @@
 extends SceneTree
 
+const TestFixtures = preload("res://tests/test_fixtures.gd")
+var fixtures = TestFixtures.new("test_playability")
+
 var checks: int = 0
 var failures: int = 0
 var game: Node3D
@@ -41,20 +44,40 @@ func first_events(kind: String) -> Array[String]:
 			if result.size() == 5: break
 	return result
 
-func physical_run(route: int, lane: float, pose: int) -> Dictionary:
-	game.select_route(route)
-	game.set_pose(pose)
+func physical_run(route: int, lane: float, pose: int, player_input: bool = false) -> Dictionary:
+	game._replace_route(route)
 	game.start_ready()
-	game.skater.position.x = lane
-	game.charge = .75
+	if player_input:
+		held_key(KEY_1+pose,true); held_key(KEY_1+pose,false)
+		var lane_key: int=KEY_A if lane<game.skater.position.x else KEY_D
+		held_key(lane_key,true)
+		var lane_ticks: int=0
+		while absf(game.skater.position.x-lane)>.05 and lane_ticks<250:
+			await frames(1); lane_ticks+=1
+		held_key(lane_key,false)
+		check(absf(game.skater.position.x-lane)<=.05,"player keys select the chosen mastery lane")
+		held_key(KEY_W,true); held_key(KEY_SPACE,true)
+		var charge_ticks: int=0
+		while game.charge<.999 and charge_ticks<200:
+			await frames(1); charge_ticks+=1
+		check(game.charge>=.999 and game.space_armed,"held Space reaches full charge through actual input")
+		held_key(KEY_SPACE,false)
+		check(game.phase==game.Phase.RUN,"matched Space release launches the actual player attempt")
+	else:
+		game.set_pose(pose)
+		game.skater.position.x = lane
+		game.charge = .75
 	var bank_before: int = game.fund_total()
 	var best_before: int = game.best_scores[route]
-	game.launch()
+	if not player_input: game.launch()
 	var ticks: int = 0
 	while game.phase == game.Phase.RUN and ticks < 700:
 		await frames(1)
 		ticks += 1
 	check(game.phase == game.Phase.CRASH,"physical obstacle triggers crash route %d lane %.1f pose %d" % [route,lane,pose])
+	if player_input:
+		held_key(KEY_W,false)
+		check(game.push_count>0,"held W creates actual run-up kicks in the mastery attempt")
 	var angle: float = game.skater.torso.rotation.x if game.skater.ragdoll else 0.0
 	var crash_frames: int = 0
 	while game.phase == game.Phase.CRASH and crash_frames < 3000:
@@ -71,6 +94,7 @@ func physical_run(route: int, lane: float, pose: int) -> Dictionary:
 	for limb in game.rules.limb_damage:
 		check(game.rules.limb_damage[limb] >= 0 and game.rules.limb_damage[limb] <= 100,"physical severity remains bounded for "+limb)
 	var item: Dictionary = {"route":route+1,"lane":lane,"pose":pose,"score":game.rules.score,"property":game.rules.property_damage,"injury":game.rules.rider_damage,"wrecks":game.rules.destroyed,"explosions":game.rules.explosions,"simulation_seconds":game.crash_clock,"frame_clock_seconds":game.crash_real_clock,"physics_frames":crash_frames,"first_five":first_events(""),"property_first_five":first_events("property"),"injury_first_five":first_events("injury"),"initial_torso_angle":angle,"limbs":game.rules.limb_damage.duplicate(),"secured":game.last_money_secured}
+	item["controls"]={"actual_player_input":player_input,"charge":1.0 if player_input else .75,"pushes":game.push_count,"breaker_uses":game.breaker_events.size()}
 	var stair_regions: Dictionary = {}
 	var stair_times: Array[float] = []
 	var stair_sources: Array[String] = []
@@ -127,9 +151,9 @@ func replay_and_bank_checks() -> void:
 func boost_checks() -> void:
 	var changes: Array[float] = []
 	for side in [-1,1]:
-		game.select_route(0)
-		game.set_pose(1)
+		game._replace_route(0)
 		game.start_ready()
+		game.set_pose(1)
 		game.charge = .5
 		game.launch()
 		game.bail_out()
@@ -159,10 +183,8 @@ func boost_checks() -> void:
 	check(changes[1]-changes[0] > 4.0,"opposite target choices produce meaningfully different physical impulses")
 
 func run() -> void:
-	game = load("res://scenes/main.tscn").instantiate()
-	root.add_child(game)
-	game.test_mode = true
-	game.save_path = "res://builds/playability_test_records.json"
+	game = fixtures.create_game(root)
+	if game == null: return
 	game.best_scores.assign([0,0,0])
 	for route in range(3):
 		var outcomes: Array[Dictionary] = []
@@ -187,6 +209,10 @@ func run() -> void:
 		check(property_signatures.size() >= 2,"starting lane changes the physical property handoff sequence on route "+str(route+1))
 		check(variation >= .15,"starting lane changes payout by at least fifteen percent on route "+str(route+1))
 		report.routes.append({"route":route+1,"payout_variation":variation,"distinct_event_sequences":signatures.size(),"runs":outcomes})
+	report["coasting_best_claim_sum"] = game.fund_total()
+	var mastery: Array[Dictionary]=[]
+	for route in 3: mastery.append(await physical_run(route,0.0,1 if route==0 else 0,true))
+	report["mastery_runs"]=mastery
 	report["full_charge_best_claim_sum"] = game.fund_total()
 	var poses: Array[Dictionary] = []
 	for pose in range(3): poses.append(await physical_run(0,0.0,pose))
@@ -212,7 +238,7 @@ func run() -> void:
 	await boost_checks()
 	report.checks = checks
 	report.failures = failures
-	var file := FileAccess.open("res://builds/playability_report.json",FileAccess.WRITE)
+	var file := FileAccess.open(fixtures.artifact_path("playability_report.json"),FileAccess.WRITE)
 	file.store_string(JSON.stringify(report,"\t"))
 	file.close()
 	game.unpause()
@@ -220,5 +246,5 @@ func run() -> void:
 	await process_frame
 	await process_frame
 	game = null
-	print("PLAYABILITY: ",checks," checks, ",failures," failures; report builds/playability_report.json")
+	print("PLAYABILITY: ",checks," checks, ",failures," failures; report ",fixtures.artifact_path("playability_report.json"))
 	quit(1 if failures else 0)

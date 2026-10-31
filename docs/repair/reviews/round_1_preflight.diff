@@ -1,0 +1,12 @@
+--- round_0/tasks/R01.md
++++ round_1/tasks/R01.md
+@@ -109,3 +109,9 @@
+ Close R01 only after cold-start isolation and runner negative cases pass with actual engine evidence.
+ A new wrapper file, mocked success marker, or larger assertion count alone does not complete the task.
+ Keep all generated run outputs under builds; do not export test fixtures into the game PCK.
++
++## Failure handling and rollback
++
++Before changing startup/runner plumbing, preserve source copies and the original failure logs.
++If isolation or timeout cleanup fails, restore only this task's own changed files and keep diagnostics.
++Do not restore over another agent's edits, modify physical rules, or touch player records during rollback.

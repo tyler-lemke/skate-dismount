@@ -1,5 +1,8 @@
 extends SceneTree
 
+const TestFixtures = preload("res://tests/test_fixtures.gd")
+var fixtures = TestFixtures.new("test_skating")
+
 var checks: int=0
 var failures: int=0
 var game: Node3D
@@ -18,9 +21,9 @@ func held(code: int, pressed: bool) -> void:
 func _initialize() -> void: call_deferred("run")
 
 func run() -> void:
-	game=load("res://scenes/main.tscn").instantiate(); root.add_child(game)
-	game.save_path="res://builds/skating_test_records.json"
-	game.select_route(0); game.start_ready(); game.charge=.15; game.launch()
+	game=fixtures.create_game(root)
+	if game == null: return
+	game._replace_route(0); game.start_ready(); game.charge=.15; game.launch()
 	var start: float=game.run_speed
 	await frames(18)
 	check(game.phase==game.Phase.RUN and game.skater.position.z<0,"coast fixture remains on the flat run-up")

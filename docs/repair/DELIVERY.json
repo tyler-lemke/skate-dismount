@@ -1,0 +1,41 @@
+{
+  "deliverable": "Reviewed bug-repair plan and executable local task queue",
+  "gameplay_fixes_implemented": false,
+  "new_release_created": false,
+  "whole_plan_review_rounds": 4,
+  "latest_review_required_changes": 0,
+  "tasks": 15,
+  "blocking_edges": 30,
+  "plan_lines": 2129,
+  "initial_ready_task": "R01",
+  "initial_ready_bead": "swfix-r01-0gu",
+  "standalone_reviews": [
+    "R13",
+    "R11",
+    "R06 (clarifications integrated)",
+    "R02"
+  ],
+  "native_play_render_audio_verified_by_this_audit": false,
+  "prior_package_integrity": "passed by validation audit; no current corruption alleged",
+  "plan": "docs/repair/PLAN.md",
+  "queue": "docs/repair/QUEUE.md",
+  "audit_reports": [
+    "docs/repair/audit_physics.md",
+    "docs/repair/audit_state_ui.md",
+    "docs/repair/audit_validation.md"
+  ],
+  "evidence_root": "builds/repair_audit",
+  "beads_modified_only_by_br": true,
+  "models_actual": [
+    "gpt-6-astra high",
+    "gpt-6.1-sol high",
+    "inherited internal reasoning agent for round2"
+  ],
+  "external_gemini_claude_grok_gptpro_review_claimed": false,
+  "full_task_conversion_verified": true,
+  "graph_cycles": [],
+  "gameplay_source_files_unchanged": 157,
+  "final_plan_sha256": "5c07aabe8ffb474ad6a2caf1795bf093c52abd66caebb22c1f5fa92cda6c7d74",
+  "independent_conversion_audit": "passed",
+  "independent_conversion_report": "docs/repair/reviews/beads_conversion.md"
+}

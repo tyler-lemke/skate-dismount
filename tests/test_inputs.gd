@@ -1,9 +1,11 @@
 extends SceneTree
 
+const TestFixtures = preload("res://tests/test_fixtures.gd")
+var fixtures = TestFixtures.new("test_inputs")
+
 var checks: int = 0
 var failures: int = 0
 var game: Node3D
-const RECORD_PATH: String = "res://builds/input_test_records.json"
 
 func check(condition: bool, message: String) -> void:
 	checks += 1
@@ -29,13 +31,11 @@ func _initialize() -> void:
 	call_deferred("run")
 
 func run() -> void:
-	game = load("res://scenes/main.tscn").instantiate()
-	root.add_child(game)
-	game.test_mode = true
-	game.save_path = RECORD_PATH
+	game = fixtures.create_game(root)
+	if game == null: return
 	game.best_scores.assign([0,0,0])
 	game.legacy_scores.assign([0,0,0])
-	game.select_route(0)
+	game._replace_route(0)
 	game.start_ready()
 	await process_frame
 	await process_frame
@@ -100,9 +100,9 @@ func run() -> void:
 	game.selected_hat = (saved_hat+1)%3
 	game.load_records()
 	check(game.selected_hat == saved_hat,"actual F selection was persisted without a separate manual save")
-	game.select_route(1)
+	game._replace_route(1)
 	check(game.skater.hat_index == saved_hat and game.skater.visuals.head.get_node_or_null("CrashHat") != null,"route recreation retains the selected worn hat")
-	var fixture := FileAccess.open(RECORD_PATH,FileAccess.WRITE)
+	var fixture := FileAccess.open(fixtures.records_path,FileAccess.WRITE)
 	fixture.store_string(JSON.stringify({"version":1,"best_scores":[700000,800000,900000],"muted":true}))
 	fixture.close()
 	game.load_records()
@@ -112,7 +112,7 @@ func run() -> void:
 	game.best_scores.assign([120000,180000,220000])
 	game.selected_hat = saved_hat
 	game.save_records()
-	var saved: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(RECORD_PATH))
+	var saved: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(fixtures.records_path))
 	check(int(saved.version) == 2 and saved.legacy_scores.size() == 3 and int(saved.legacy_scores[0]) == 700000 and int(saved.legacy_scores[1]) == 800000 and int(saved.legacy_scores[2]) == 900000,"version-two save retains migrated legacy records")
 	game.best_scores.assign([0,0,0])
 	game.legacy_scores.assign([0,0,0])
@@ -121,14 +121,18 @@ func run() -> void:
 	game.load_records()
 	check(game.best_scores == [120000,180000,220000] and game.fund_total() == 520000,"version-two treatment claims round trip independently")
 	check(game.legacy_scores == [700000,800000,900000] and game.selected_hat == saved_hat and game.muted,"legacy records, worn hat and sound preference round trip together")
-	game.select_route(2)
+	game._replace_route(2)
 	check(game.skater.hat_index == saved_hat,"loaded hat preference is applied to a new route rider")
-	var reopened: Node3D = load("res://scenes/main.tscn").instantiate()
-	root.add_child(reopened)
-	reopened.test_mode = true
-	reopened.save_path = RECORD_PATH
-	reopened.load_records()
-	reopened.select_route(0)
+	var cold: Dictionary = fixtures.observe_startup()
+	var observed: Dictionary = cold.observation
+	check(cold.exit_code == 0 and not observed.is_empty(),"saved treatment file is readable in a fresh Godot process")
+	var cold_best := PackedInt64Array(observed.get("best_scores",[]))
+	var cold_legacy := PackedInt64Array(observed.get("legacy_scores",[]))
+	check(cold_best == PackedInt64Array([120000,180000,220000]) and cold_legacy == PackedInt64Array([700000,800000,900000]),"cold process reloads treatment and historical records on its first startup read")
+	check(observed.get("hat",-1) == saved_hat and observed.get("rider_hat",-1) == saved_hat and observed.get("has_hat",false) and observed.get("muted",false),"cold process reloads and wears the input-selected persisted hat with its sound preference")
+	var reopened: Node3D = fixtures.create_game(root,fixtures.EMPTY_RECORD,true)
+	if reopened == null: return
+	reopened._replace_route(0)
 	check(reopened.fund_total() == 520000 and reopened.legacy_scores == [700000,800000,900000],"fresh game instance reloads treatment and historical records independently")
 	check(reopened.selected_hat == saved_hat and reopened.skater.hat_index == saved_hat and reopened.skater.visuals.head.get_node_or_null("CrashHat") != null,"fresh game instance reloads and wears the persisted hat")
 	reopened.queue_free()
