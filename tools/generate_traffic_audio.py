@@ -1,4 +1,4 @@
-"""Generate original STAIR//WRECK traffic sounds with Python's standard library.
+"""Generate original SKATE DISMOUNT traffic sounds with Python's standard library.
 
 The synthesis and resulting WAVs are original project assets under the MIT license.
 No recordings, samples, fonts, network resources, or third-party libraries are used.

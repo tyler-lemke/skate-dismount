@@ -1,6 +1,6 @@
 """Editable, original designer hats. Run using Blender MCP's headless executor."""
 import bpy, math, os
-ROOT='/Users/tyler/Documents/GitHub/stair-dismount'
+ROOT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 scene=bpy.context.scene
 made=[]
 def mat(name,color):
@@ -41,5 +41,5 @@ cylinder('Traffic crown base',.32,.055,.03,ink)
 bpy.ops.mesh.primitive_cone_add(vertices=20,radius1=.22,radius2=.035,depth=.55,location=(0,0,.32));finish(bpy.context.object,orange)
 cylinder('Reflective hat stripe',.137,.08,.31,paper)
 export('hat_cone')
-bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ROOT,'blender/stair_wreck_assets.blend'))
+bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ROOT,'blender/skate_dismount_assets.blend'))
 result={'status':'ok','hats':['hat_clockwork','hat_crane','hat_cone']}

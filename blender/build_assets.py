@@ -1,10 +1,10 @@
-"""Original STAIR//WRECK asset kit. Run through Blender MCP background executor."""
+"""Original SKATE DISMOUNT asset kit. Run through Blender MCP background executor."""
 import bpy, math, os
 from mathutils import Vector
-ROOT='/Users/tyler/Documents/GitHub/stair-dismount'
+ROOT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene=bpy.context.scene
-scene.name='STAIR_WRECK_Asset_Studio'
+scene.name='SKATE_DISMOUNT_Asset_Studio'
 scene.unit_settings.system='METRIC'
 M={}
 colors={'ink':(0.025,0.047,0.065,1),'mint':(.28,.95,.66,1),'orange':(1,.24,.055,1),'yellow':(1,.76,.12,1),'white':(.87,.93,.91,1),'steel':(.24,.34,.39,1),'rubber':(.025,.032,.035,1),'blue':(.07,.29,.47,1),'wood':(.49,.25,.10,1),'pink':(.91,.12,.43,1),'skin':(.74,.43,.28,1)}
@@ -131,5 +131,5 @@ export('barrier')
 # Studio overview has all editable source objects and a readable asset index.
 scene.world=bpy.data.worlds.new('Studio')
 scene.world.color=(.06,.08,.10)
-bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ROOT,'blender/stair_wreck_assets.blend'))
-result={'status':'ok','exports':exports,'blend':os.path.join(ROOT,'blender/stair_wreck_assets.blend'),'asset_count':len(exports)}
+bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ROOT,'blender/skate_dismount_assets.blend'))
+result={'status':'ok','exports':exports,'blend':os.path.join(ROOT,'blender/skate_dismount_assets.blend'),'asset_count':len(exports)}

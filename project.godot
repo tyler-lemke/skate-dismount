@@ -1,13 +1,13 @@
-; STAIR//WRECK — original arcade crash sandbox
+; SKATE DISMOUNT — original arcade crash sandbox
 config_version=5
 
 [application]
-config/name="STAIR WRECK"
+config/name="SKATE DISMOUNT"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://assets/icon.svg"
 config/use_custom_user_dir=true
-config/custom_user_dir_name="STAIR_WRECK"
+config/custom_user_dir_name="SKATE_DISMOUNT"
 
 [display]
 window/size/viewport_width=1440

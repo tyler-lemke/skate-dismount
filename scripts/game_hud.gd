@@ -138,8 +138,8 @@ func build_menu() -> void:
 	panel(menu,Vector2(22,22),Vector2(470,856),Color(.035,.075,.105,.985),Color("38515b"))
 	panel(menu,Vector2(22,22),Vector2(7,856),MINT)
 	label(menu,"FILE 001  /  THE TREATMENT FUND",Vector2(54,53),Vector2(400,30),14,GOLD)
-	label(menu,"STAIR",Vector2(48,85),Vector2(410,99),83)
-	label(menu,"// WRECK",Vector2(48,173),Vector2(420,93),72,MINT)
+	label(menu,"SKATE",Vector2(48,85),Vector2(410,99),83)
+	label(menu,"DISMOUNT",Vector2(48,173),Vector2(420,93),72,MINT)
 	label(menu,"Mom needs cancer treatment.\nEvery better claim brings treatment closer.",Vector2(54,285),Vector2(390,67),20,PAPER)
 	label(menu,"CHOOSE A ROUTE TO FILE",Vector2(54,372),Vector2(360,30),13,MUTED)
 	for i in range(3):

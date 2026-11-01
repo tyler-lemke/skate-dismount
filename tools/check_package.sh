@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-RUNTIME="$PROJECT_DIR/builds/StairWreck.app/Contents/MacOS/StairWreck"
-CHECK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/stairwreck-package.XXXXXX")
+RUNTIME="$PROJECT_DIR/builds/SkateDismount.app/Contents/MacOS/SkateDismount"
+CHECK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/skatedismount-package.XXXXXX")
 trap 'rmdir "$CHECK_DIR" 2>/dev/null || true' EXIT
 for level in 0 1 2; do
   "$RUNTIME" --headless --path "$CHECK_DIR" --fixed-fps 60 --log-file "$PROJECT_DIR/builds/package_level_$level.log" -- --self-check "--level=$level" > "$PROJECT_DIR/builds/package_level_$level.output.log" 2>&1
@@ -14,5 +14,5 @@ done
 cat "$PROJECT_DIR/builds/package_assets.output.log"
 if ! rg -q 'PACKAGED_ASSETS: 19 models / 15 audio; 0 failures' "$PROJECT_DIR/builds/package_assets.output.log"; then exit 1; fi
 if rg -q 'SCRIPT ERROR|leaked at exit|resources still in use' "$PROJECT_DIR/builds/package_assets.output.log"; then exit 1; fi
-codesign --verify --deep --strict "$PROJECT_DIR/builds/StairWreck.app"
+codesign --verify --deep --strict "$PROJECT_DIR/builds/SkateDismount.app"
 printf '%s\n' 'Packaged game: three levels complete; app signature valid.'

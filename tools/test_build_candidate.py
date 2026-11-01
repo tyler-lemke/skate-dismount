@@ -44,15 +44,15 @@ class CandidateControls(unittest.TestCase):
         app = directory / candidate.APP_NAME
         (app / "Contents/MacOS").mkdir(parents=True)
         (app / "Contents/Resources").mkdir()
-        for relative, content in (("Contents/MacOS/StairWreck", b"disposable executable-mode fixture\n"),
-                                  ("Contents/MacOS/StairWreck.pck", b"disposable pack hash fixture\n"),
-                                  ("Contents/Resources/StairWreck.icns", b"icon fixture"),
+        for relative, content in (("Contents/MacOS/SkateDismount", b"disposable executable-mode fixture\n"),
+                                  ("Contents/MacOS/SkateDismount.pck", b"disposable pack hash fixture\n"),
+                                  ("Contents/Resources/SkateDismount.icns", b"icon fixture"),
                                   ("Contents/Resources/GODOT_LICENSE.txt", b"Godot fixture license"),
                                   ("Contents/Resources/GAME_LICENSE.txt", b"game fixture license")):
             (app / relative).write_bytes(content)
-        (app / "Contents/MacOS/StairWreck").chmod(0o755)
-        plist = {"CFBundleExecutable": "StairWreck", "CFBundleName": "STAIR WRECK", "CFBundleShortVersionString": "3.1candidate",
-                 "StairWreckBuildID": self.build_id, "LSMinimumSystemVersion": "11.0"}
+        (app / "Contents/MacOS/SkateDismount").chmod(0o755)
+        plist = {"CFBundleExecutable": "SkateDismount", "CFBundleName": "SKATE DISMOUNT", "CFBundleShortVersionString": "3.1candidate",
+                 "SkateDismountBuildID": self.build_id, "LSMinimumSystemVersion": "11.0"}
         (app / "Contents/Info.plist").write_bytes(plistlib.dumps(plist))
         run_bounded.write_json(app / "Contents/Resources/build_identity.json", {"build_id": self.build_id, "identity": self.identity})
         return directory, app, candidate.app_file_map(app)
@@ -82,7 +82,7 @@ class CandidateControls(unittest.TestCase):
     def serialized_pack_fixture(self, name, *, hang=False):
         directory, app, _ = self.fixture(name)
         smoke = candidate.PROJECT / "builds/repair_work/R13/packer-smoke-20261005T024931.157278Z-2faa6e14/probe.pck"
-        pack = app / "Contents/MacOS/StairWreck.pck"
+        pack = app / "Contents/MacOS/SkateDismount.pck"
         pack.write_bytes(smoke.read_bytes())
         entries = sorted(({key: entry[key] for key in ("path", "bytes", "sha256")}
                           for entry in candidate.read_pck(pack)["files"]), key=lambda entry: entry["path"])
@@ -97,13 +97,13 @@ class CandidateControls(unittest.TestCase):
         run_bounded.write_json(app / "Contents/Resources/build_identity.json", {"build_id":build_id,"identity":identity})
         plist_path = app / "Contents/Info.plist"
         plist = plistlib.loads(plist_path.read_bytes())
-        plist["StairWreckBuildID"] = build_id
+        plist["SkateDismountBuildID"] = build_id
         plist_path.write_bytes(plistlib.dumps(plist))
         if hang:
-            (app / "Contents/MacOS/StairWreck").write_text("#!/usr/bin/env python3\nimport time\ntime.sleep(30)\n")
+            (app / "Contents/MacOS/SkateDismount").write_text("#!/usr/bin/env python3\nimport time\ntime.sleep(30)\n")
         report = {"candidate_directory":str(directory),"build_id":build_id,"identity":identity,"engine":self.engine,
                   "input_inventory":sources,"existing_import_cache":cache,"packed_inputs":entries,
-                  "pck":candidate.file_entry(pack,"Contents/MacOS/StairWreck.pck"),
+                  "pck":candidate.file_entry(pack,"Contents/MacOS/SkateDismount.pck"),
                   "app_file_map":candidate.app_file_map(app),"extracted_app":str(app),"bounded_checks":{}}
         archive = self.archive(directory,app)
         report["zip"] = candidate.file_entry(archive,candidate.ZIP_NAME)
@@ -141,7 +141,7 @@ class CandidateControls(unittest.TestCase):
     def test_stale_zip_app_mismatch(self):
         directory, app, expected = self.fixture("stale archive")
         archive = self.archive(directory, app)
-        (app / "Contents/MacOS/StairWreck.pck").write_bytes(b"different live app PCK bytes\n")
+        (app / "Contents/MacOS/SkateDismount.pck").write_bytes(b"different live app PCK bytes\n")
         self.rejects("size mismatch|checksum mismatch", lambda: candidate.verify_zip(archive, candidate.app_file_map(app)))
 
     def test_archive_manifest_checksum_and_supplied_candidate_cli(self):
@@ -203,11 +203,11 @@ class CandidateControls(unittest.TestCase):
 
     def test_missing_runtime_member(self):
         directory, app, expected = self.fixture("missing member")
-        archive = self.archive(directory, app, omit=candidate.APP_NAME + "/Contents/MacOS/StairWreck.pck")
+        archive = self.archive(directory, app, omit=candidate.APP_NAME + "/Contents/MacOS/SkateDismount.pck")
         self.rejects("missing runtime", lambda: candidate.verify_zip(archive, expected))
 
     def test_traversal_absolute_and_backslash_paths(self):
-        for number, path in enumerate(("../escaped", "/absolute", "StairWreck.app/../escaped", "StairWreck.app\\escaped")):
+        for number, path in enumerate(("../escaped", "/absolute", "SkateDismount.app/../escaped", "SkateDismount.app\\escaped")):
             with self.subTest(path=path):
                 directory, app, expected = self.fixture("unsafe" + str(number))
                 archive = self.archive(directory, app, extra=path)
@@ -237,16 +237,16 @@ class CandidateControls(unittest.TestCase):
 
     def test_duplicate_archive_member(self):
         directory, app, expected = self.fixture("duplicate member")
-        archive = self.archive(directory, app, duplicate=candidate.APP_NAME + "/Contents/MacOS/StairWreck.pck")
+        archive = self.archive(directory, app, duplicate=candidate.APP_NAME + "/Contents/MacOS/SkateDismount.pck")
         self.rejects("duplicate archive", lambda: candidate.verify_zip(archive, expected))
 
     def test_bad_plist_build_id(self):
         directory, app, expected = self.fixture("bad plist ID")
         path = app / "Contents/Info.plist"
         plist = plistlib.loads(path.read_bytes())
-        plist["StairWreckBuildID"] = "stale"
+        plist["SkateDismountBuildID"] = "stale"
         path.write_bytes(plistlib.dumps(plist))
-        self.rejects("plist StairWreckBuildID", lambda: candidate.validate_app(app, self.build_id, self.engine))
+        self.rejects("plist SkateDismountBuildID", lambda: candidate.validate_app(app, self.build_id, self.engine))
 
     def test_bad_embedded_identity(self):
         directory, app, expected = self.fixture("bad embedded engine ID")
@@ -258,18 +258,18 @@ class CandidateControls(unittest.TestCase):
 
     def test_nonexecutable_runtime_mode(self):
         directory, app, expected = self.fixture("nonexecutable runtime")
-        (app / "Contents/MacOS/StairWreck").chmod(0o644)
+        (app / "Contents/MacOS/SkateDismount").chmod(0o644)
         self.rejects("executable mode", lambda: candidate.validate_app(app, self.build_id, self.engine))
 
     def test_altered_pack_hash(self):
         directory, app, expected = self.fixture("altered PCK")
-        (app / "Contents/MacOS/StairWreck.pck").write_bytes(b"tampered disposable pack\n")
+        (app / "Contents/MacOS/SkateDismount.pck").write_bytes(b"tampered disposable pack\n")
         self.rejects("app file bytes", lambda: candidate.validate_app(app, self.build_id, self.engine, expected_map=expected))
 
     def test_refreshed_output_hashes_cannot_disconnect_pack_from_source_identity(self):
         directory, app, report = self.serialized_pack_fixture("changed pack refreshed output manifest")
         candidate.verify_outputs(directory,report)
-        pack = app / "Contents/MacOS/StairWreck.pck"
+        pack = app / "Contents/MacOS/SkateDismount.pck"
         # Change actual file bytes and repair the PCK entry MD5, so serialization
         # remains valid. The original embedded canonical input identity stays fixed.
         with pack.open("r+b") as stream:
@@ -290,7 +290,7 @@ class CandidateControls(unittest.TestCase):
             stream.write(hashlib.md5(changed).digest())
         report["packed_inputs"] = sorted(({key:entry[key] for key in ("path","bytes","sha256")}
                                          for entry in candidate.read_pck(pack)["files"]),key=lambda entry:entry["path"])
-        report["pck"]=candidate.file_entry(pack,"Contents/MacOS/StairWreck.pck")
+        report["pck"]=candidate.file_entry(pack,"Contents/MacOS/SkateDismount.pck")
         report["app_file_map"]=candidate.app_file_map(app)
         report["zip"]=candidate.file_entry(self.archive(directory,app),candidate.ZIP_NAME)
         self.rejects("packed inventory differs from canonical",lambda:candidate.verify_outputs(directory,report))
@@ -436,7 +436,7 @@ class CandidateControls(unittest.TestCase):
         run_bounded.write_json(directory / "metadata.json", metadata)
 
     def test_actual_original_pack_reader_and_tampered_copy(self):
-        original = candidate.PROJECT / "builds/StairWreck.app/Contents/MacOS/StairWreck.pck"
+        original = candidate.PROJECT / "builds/SkateDismount.app/Contents/MacOS/SkateDismount.pck"
         before = candidate.sha256(original)
         parsed = candidate.read_pck(original)
         self.assertEqual(parsed["format"], 4)

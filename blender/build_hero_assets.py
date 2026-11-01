@@ -1,4 +1,4 @@
-"""Reproducible original STAIR//WRECK hero, deck and cab. Blender 5+, no downloads.
+"""Reproducible original SKATE DISMOUNT hero, deck and cab. Blender 5+, no downloads.
 Run: blender --background --python blender/build_hero_assets.py
 Godot forward +Z = Blender -Y; metric asset origins match the collision proxies.
 """

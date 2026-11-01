@@ -3,7 +3,7 @@ These are validation previews, not captures from Godot's native renderer.
 """
 import bpy,json,math,os
 from mathutils import Matrix,Vector
-ROOT='/Users/tyler/Documents/GitHub/stair-dismount'
+ROOT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCENE_FILE=globals().get('SCENE_FILE',ROOT+'/builds/scene_1_menu.json')
 data=json.load(open(SCENE_FILE))
 bpy.ops.wm.read_factory_settings(use_empty=True)

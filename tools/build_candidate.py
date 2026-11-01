@@ -25,8 +25,8 @@ import run_bounded
 
 PROJECT = Path(__file__).resolve().parent.parent
 SCHEMA = 1
-APP_NAME = "StairWreck.app"
-ZIP_NAME = "StairWreck-macOS.zip"
+APP_NAME = "SkateDismount.app"
+ZIP_NAME = "SkateDismount-macOS.zip"
 BUILD_METHOD = "runtime_pckpacker/from_existing_import_cache"
 PACKAGING_INPUTS = ("export_presets.cfg", "LICENSE", "docs/GODOT_LICENSE.txt",
                     "tools/build_candidate.py", "tools/pack_candidate.gd", "tools/run_bounded.py",
@@ -242,8 +242,8 @@ def identity_payload(inputs, cache, engine):
 def packed_inputs(inputs, cache):
     result = [entry for entry in inputs if entry["path"] == "project.godot" or
               entry["path"].startswith(("scripts/", "scenes/")) or
-              (entry["path"].startswith("assets/") and not entry["path"].startswith("assets/stairwreck.iconset/") and
-               entry["path"] != "assets/StairWreck.icns")]
+              (entry["path"].startswith("assets/") and not entry["path"].startswith("assets/skatedismount.iconset/") and
+               entry["path"] != "assets/SkateDismount.icns")]
     return sorted(result + cache["files"], key=lambda entry: entry["path"])
 
 
@@ -324,8 +324,8 @@ def app_file_map(app):
 
 def validate_app(app, build_id, engine, *, expected_map=None):
     plist = plistlib.loads((app / "Contents/Info.plist").read_bytes())
-    expected = {"CFBundleExecutable": "StairWreck", "CFBundleName": "STAIR WRECK",
-                "CFBundleShortVersionString": "3.1candidate", "StairWreckBuildID": build_id,
+    expected = {"CFBundleExecutable": "SkateDismount", "CFBundleName": "SKATE DISMOUNT",
+                "CFBundleShortVersionString": "3.1candidate", "SkateDismountBuildID": build_id,
                 "LSMinimumSystemVersion": engine["declared_minimum_os"]}
     for key, value in expected.items():
         require(plist.get(key) == value, f"plist {key} differs from candidate identity")
@@ -335,10 +335,10 @@ def validate_app(app, build_id, engine, *, expected_map=None):
     require(isinstance(payload, dict) and hashlib.sha256(canonical(payload)).hexdigest() == build_id,
             "embedded canonical source/engine identity digest mismatch")
     require(payload.get("engine", {}).get("sha256") == engine["sha256"], "embedded engine identity mismatch")
-    for relative in ("Contents/MacOS/StairWreck", "Contents/MacOS/StairWreck.pck", "Contents/Resources/StairWreck.icns",
+    for relative in ("Contents/MacOS/SkateDismount", "Contents/MacOS/SkateDismount.pck", "Contents/Resources/SkateDismount.icns",
                      "Contents/Resources/GODOT_LICENSE.txt", "Contents/Resources/GAME_LICENSE.txt"):
         require((app / relative).is_file() and (app / relative).stat().st_size > 0, f"missing runtime member: {relative}")
-    require(stat.S_IMODE((app / "Contents/MacOS/StairWreck").stat().st_mode) == 0o755, "runtime executable mode must be 0755")
+    require(stat.S_IMODE((app / "Contents/MacOS/SkateDismount").stat().st_mode) == 0o755, "runtime executable mode must be 0755")
     actual = app_file_map(app)
     if expected_map is not None:
         require(actual == expected_map, "app file bytes/inventory/modes differ from signed candidate map")
@@ -414,7 +414,7 @@ def verify_outputs(directory, report):
             "manifest engine metadata differs from canonical engine identity")
     canonical_pack = packed_inputs(embedded["source_inputs"], embedded["existing_import_cache"])
     require(report["packed_inputs"] == canonical_pack, "manifest packed inventory differs from canonical source/cache identity")
-    pck = app / "Contents/MacOS/StairWreck.pck"
+    pck = app / "Contents/MacOS/SkateDismount.pck"
     require(sha256(pck) == report["pck"]["sha256"], "PCK digest differs from candidate manifest")
     pck_report = verify_pck(pck, report["packed_inputs"])
     members = verify_zip(archive, report["app_file_map"])
@@ -425,23 +425,23 @@ def construct_app(directory, engine, build_id, identity):
     app = directory / APP_NAME
     (app / "Contents/MacOS").mkdir(parents=True)
     (app / "Contents/Resources").mkdir()
-    shutil.copyfile(engine["path"], app / "Contents/MacOS/StairWreck")
-    copied_engine = app / "Contents/MacOS/StairWreck"
+    shutil.copyfile(engine["path"], app / "Contents/MacOS/SkateDismount")
+    copied_engine = app / "Contents/MacOS/SkateDismount"
     require(copied_engine.stat().st_size == engine["bytes"] and sha256(copied_engine) == engine["sha256"],
             "copied engine differs from tested original before signing")
-    (app / "Contents/MacOS/StairWreck").chmod(0o755)
+    (app / "Contents/MacOS/SkateDismount").chmod(0o755)
     expected_inputs = {entry["path"]: entry for entry in identity["source_inputs"]}
-    for source, target in ((PROJECT / "assets/StairWreck.icns", "StairWreck.icns"),
+    for source, target in ((PROJECT / "assets/SkateDismount.icns", "SkateDismount.icns"),
                            (PROJECT / "docs/GODOT_LICENSE.txt", "GODOT_LICENSE.txt"), (PROJECT / "LICENSE", "GAME_LICENSE.txt")):
         shutil.copyfile(source, app / "Contents/Resources" / target)
         relative = source.relative_to(PROJECT).as_posix()
         require(sha256(app / "Contents/Resources" / target) == expected_inputs[relative]["sha256"],
                 f"copied packaging input differs: {relative}")
     run_bounded.write_json(app / "Contents/Resources/build_identity.json", {"build_id": build_id, "identity": identity})
-    plist = {"CFBundleExecutable": "StairWreck", "CFBundleIdentifier": "com.stairwreck.game",
-             "CFBundleName": "STAIR WRECK", "CFBundleDisplayName": "STAIR // WRECK",
+    plist = {"CFBundleExecutable": "SkateDismount", "CFBundleIdentifier": "com.skatedismount.game",
+             "CFBundleName": "SKATE DISMOUNT", "CFBundleDisplayName": "SKATE DISMOUNT",
              "CFBundlePackageType": "APPL", "CFBundleShortVersionString": "3.1candidate",
-             "CFBundleVersion": "3.1", "CFBundleIconFile": "StairWreck.icns", "StairWreckBuildID": build_id,
+             "CFBundleVersion": "3.1", "CFBundleIconFile": "SkateDismount.icns", "SkateDismountBuildID": build_id,
              "LSMinimumSystemVersion": engine["declared_minimum_os"], "NSHighResolutionCapable": True}
     (app / "Contents/Info.plist").write_bytes(plistlib.dumps(plist, sort_keys=True))
     return app
@@ -457,14 +457,14 @@ def extract_and_verify(directory, report, timeout):
     run_check(report, "extracted_signature_" + extraction.name[-8:],
               ["/usr/bin/codesign", "--verify", "--deep", "--strict", str(app)], directory, timeout)
     archs = run_check(report, "extracted_architectures_" + extraction.name[-8:],
-                      ["/usr/bin/lipo", "-archs", str(app / "Contents/MacOS/StairWreck")], directory, timeout)
+                      ["/usr/bin/lipo", "-archs", str(app / "Contents/MacOS/SkateDismount")], directory, timeout)
     loads = run_check(report, "extracted_load_commands_" + extraction.name[-8:],
-                      ["/usr/bin/otool", "-l", str(app / "Contents/MacOS/StairWreck")], directory, timeout)
+                      ["/usr/bin/otool", "-l", str(app / "Contents/MacOS/SkateDismount")], directory, timeout)
     metadata = architecture_metadata(archs, loads)
     require(metadata == {key: report["engine"][key] for key in metadata}, "extracted runtime architecture/minimum OS differs")
     report["extraction_path"] = str(extraction)
     report["extracted_app"] = str(app)
-    report["bundled_signed_engine"] = file_entry(app / "Contents/MacOS/StairWreck", "Contents/MacOS/StairWreck")
+    report["bundled_signed_engine"] = file_entry(app / "Contents/MacOS/SkateDismount", "Contents/MacOS/SkateDismount")
     report["archive_verified"] = True
     run_bounded.write_json(directory / "manifest.json", report)
     return app
@@ -518,7 +518,7 @@ def build(args):
         pack_manifest = directory / "pack_inputs.json"
         run_bounded.write_json(pack_manifest, {"schema": SCHEMA, "files": staged})
         app = construct_app(directory, engine, build_id, identity)
-        pck = app / "Contents/MacOS/StairWreck.pck"
+        pck = app / "Contents/MacOS/SkateDismount.pck"
         run_check(report, "runtime_pckpacker", [engine["path"], "--headless", "--path", str(directory / "stage"),
                   "--script", str(PROJECT / "tools/pack_candidate.gd"), "--log-file", str(directory / "logs/packer.engine.log"),
                   "--", "--manifest=" + str(pack_manifest), "--output=" + str(pck)], directory, args.timeout_seconds,
@@ -534,7 +534,7 @@ def build(args):
         archive = directory / ZIP_NAME
         run_check(report, "candidate_archive", ["/usr/bin/ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(app), str(archive)],
                   directory, args.timeout_seconds)
-        report["pck"] = file_entry(pck, "Contents/MacOS/StairWreck.pck")
+        report["pck"] = file_entry(pck, "Contents/MacOS/SkateDismount.pck")
         report["zip"] = file_entry(archive, ZIP_NAME)
         report["archive_verification"] = verify_outputs(directory, report)
         extract_and_verify(directory, report, args.timeout_seconds)
@@ -617,7 +617,7 @@ def _check_runtime(directory, report, timeout, check_id):
     check_root = directory / ("packaged checks " + check_id)
     cwd = check_root / "unrelated empty cwd"
     cwd.mkdir(parents=True, exist_ok=False)
-    executable = app / "Contents/MacOS/StairWreck"
+    executable = app / "Contents/MacOS/SkateDismount"
     expected_tools = {entry["path"]: entry["sha256"] for entry in report["input_inventory"]}
     for script in ("tools/package_assets_probe.gd", "tools/packaged_records_probe.gd"):
         require(sha256(PROJECT / script) == expected_tools.get(script), f"external packaged probe changed since candidate identity: {script}")

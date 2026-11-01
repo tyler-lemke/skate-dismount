@@ -4,7 +4,7 @@ Run this in an ordinary graphical desktop session with Godot 4.7.2 and ffmpeg in
 
 ```sh
 python3 tools/capture_gameplay.py \
-  --project /path/to/stair-dismount \
+  --project /path/to/skate-dismount \
   --output /path/to/new-capture-directory \
   --godot /opt/homebrew/bin/godot \
   --ffmpeg /opt/homebrew/bin/ffmpeg
@@ -19,7 +19,7 @@ The helper checks command exit status and movie existence. Those checks alone do
 For a single route without the helper (after editor import), the underlying command is:
 
 ```sh
-godot --path /path/to/stair-dismount --resolution 1280x800 \
+godot --path /path/to/skate-dismount --resolution 1280x800 \
   --fixed-fps 30 --disable-vsync \
   --write-movie /path/to/new-capture-directory/civic.avi --quit-after 600 \
   -- --demo --level=0 \

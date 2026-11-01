@@ -89,7 +89,7 @@ func build(parent: Node3D, level_index: int, owner_game: Node) -> void:
 	for x in [-width*.5-1,width*.5+1]:
 		box(Vector3(x,h+2,-26),Vector3(.25,4,.25),"ink")
 	box(Vector3(0,h+4,-26),Vector3(width+2,.65,.3),"ink")
-	label_3d("STAIR // WRECK",Vector3(0,h+4,-25.81),.34,Color("84efbc"))
+	label_3d("SKATE DISMOUNT",Vector3(0,h+4,-25.81),.34,Color("84efbc"))
 	label_3d("COMMIT TO THE CASCADE",Vector3(0,h+.08,-7),.19,Color("182b37"),Vector3(-PI/2,0,0))
 	populate_props()
 	populate_traffic()

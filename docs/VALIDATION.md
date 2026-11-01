@@ -1,3 +1,45 @@
+# Skate Dismount rename validation — 2026-11-01 UTC
+
+The current project is **Skate Dismount** (`skate-dismount`). Menu/world labels,
+Godot application settings, macOS app/executable/icon/PCK/ZIP names, bundle ID,
+packaging verification, icon assets, and the editable asset-studio filename use
+the new name. Blender scripts derive their root from their script location.
+Historical commits, archived screenshots, evidence records and built packages
+retain the names they actually recorded. No renamed macOS application was built.
+
+The default user-data namespace is now `SKATE_DISMOUNT`. Legacy `STAIR_WRECK`
+saves are not automatically imported by this rename.
+
+Executed checks in the renamed staging checkout:
+
+- **30 runtime suites passed, 10,528 checks**, including 641 UI checks covering
+  the updated menu labels. The mandatory 31-suite gate did **not** pass.
+- The default namespace's initial creation is blocked by this workspace's macOS
+  filesystem restrictions. A temporary, uncommitted `override.cfg` selected the
+  already-existing legacy engine namespace for validation; each suite still
+  supplied isolated records paths. The STARTUP suite copies its own projects
+  without that override and failed 30 checks on the same directory restriction.
+  The other 17 suites were then run explicitly with a selected registry. No test
+  expectations, error filtering or mandatory registry entries were weakened.
+  The temporary override was removed after verification.
+- **27 of 28 candidate packaging controls passed.** One control cannot complete
+  because its preserved positive full-run report names the original checkout's
+  canonical registry. Missing historical fixture files were supplied from the
+  original folder unchanged. The full candidate-control gate remains unpassed;
+  archived evidence was not rewritten to satisfy the new path.
+- Python AST parsing, shell syntax, current resource/document links, and live
+  branding/path consistency passed. Blender asset regeneration, editor import,
+  native graphics, actual GIF capture, and a newly signed package were not run.
+
+Detailed local runtime evidence is retained under ignored
+`builds/test_runs/20261031T235927.669551Z-59157-4f50b83d/` (mandatory run stopped
+at STARTUP) and `builds/test_runs/20261101T000242.953846Z-59418-721b67d3/`
+(the explicitly selected remaining 17 suites). The original no-override failure
+is under `builds/test_runs/20261031T235750.951911Z-59054-b1412608/`.
+The new readings do not supersede the native-validation limitations below.
+
+---
+
 # Validation record — 3.0
 
 This is the historical v3.0 record. The repaired source now passes all 31 runtime suites and 10,807 checks; see the [current repair evidence](repair/evidence/R12.md) and [execution status](repair/RUNNING.md). The images and payouts below belong to v3.0 and have not been regenerated as native screenshots of the repair candidate.

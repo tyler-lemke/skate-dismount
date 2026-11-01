@@ -1,8 +1,8 @@
-# STAIR // WRECK
+# Skate Dismount
 
 **Choose a line. Build speed. Make the next collision count.**
 
-A three-map skateboard crash game built in Godot, with original Blender assets and synthesized audio. Bail into an eleven-part ragdoll, connect a chain of falling cargo and moving traffic, then spend your **one crashbreaker** to reach the next cluster.
+**Skate Dismount** is a three-map skateboard crash game built in Godot, with original Blender assets and synthesized audio. Bail into an eleven-part ragdoll, connect a chain of falling cargo and moving traffic, then spend your **one crashbreaker** to reach the next cluster.
 
 ![Civic's three-car chain reaction](docs/screenshots/level_1_traffic_validation.png)
 
@@ -18,7 +18,7 @@ godot --path .
 
 On macOS, `Play.command` also runs the current source; set `GODOT_BIN` if your engine lives elsewhere.
 
-An existing local checkout may contain the [verified macOS repair candidate](docs/repair/evidence/R13.md). Its ZIP lives under ignored `builds/candidates/` and is **not included in a fresh source-only clone**. The original `builds/StairWreck.app` is the historical v3.0 build.
+An existing local checkout may contain the [verified macOS repair candidate](docs/repair/evidence/R13.md). Its ZIP lives under ignored `builds/candidates/` and is **not included in a fresh source-only clone**. The original `builds/StairWreck.app` is the historical v3.0 build. New packages use `SkateDismount.app` and `SkateDismount-macOS.zip`.
 
 ## One attempt, several decisions
 
@@ -80,3 +80,5 @@ If startup reports missing imported resources, open the project in the editor an
 Game code, models, and audio are [MIT licensed](LICENSE). [Godot and third-party notices](docs/GODOT_LICENSE.txt) are included.
 
 The local Git history was reconstructed retrospectively from saved source archives and session logs. [History provenance and limits](docs/HISTORY_RECONSTRUCTION.md).
+
+Skate Dismount was previously developed as STAIR // WRECK. Historical screenshots, source archives, and validation records retain their original names.

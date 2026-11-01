@@ -62,3 +62,14 @@ failed. The helper's syntax, help, and dry-run paths were checked; the three map
 demo commands exited successfully in headless mode. Rendering and actual GIF
 encoding remain unverified. No new physics, performance, or human-playability
 claims follow from those checks.
+
+## Current project name
+
+A subsequent normal commit renames the current project to **Skate Dismount**
+(`skate-dismount`). It preserves the reconstructed commits and historical
+artifact names. See [current rename validation](VALIDATION.md). After cloning
+from GitHub, fetch optional provenance notes with:
+
+```sh
+git fetch origin refs/notes/reconstruction:refs/notes/reconstruction
+```
